@@ -3,37 +3,24 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Beagle Run - Leaderboard Edition</title>
+    <title>Beagle Run - Fixed & Clean</title>
     <style>
         body { margin: 0; padding: 0; overflow: hidden; background: #1a1a1a; display: flex; justify-content: center; align-items: center; height: 100vh; }
         canvas { display: block; background: #87CEEB; touch-action: none; box-shadow: 0 0 30px rgba(0,0,0,0.5); }
-        
-        #ui { 
-            position: absolute; top: 20px; width: 100%; text-align: center; 
-            color: white; font-family: 'Arial', sans-serif; font-size: 24px; font-weight: bold; 
-            text-shadow: 2px 2px 4px #000; pointer-events: none; z-index: 10; 
-        }
-
-        #game-over {
-            position: absolute; display: none; flex-direction: column; align-items: center; justify-content: center;
-            background: rgba(0, 0, 0, 0.7); color: white; font-family: sans-serif;
-            width: 100%; height: 100%; z-index: 20; text-align: center;
-        }
-        #game-over h1 { font-size: 48px; margin: 10px; color: #ff4d4d; }
-        #game-over p { font-size: 24px; margin: 5px; }
-        #game-over .hint { font-size: 16px; color: #aaa; margin-top: 20px; }
+        #ui { position: absolute; top: 20px; width: 100%; text-align: center; color: white; font-family: sans-serif; font-size: 22px; font-weight: bold; text-shadow: 2px 2px 4px #000; pointer-events: none; z-index: 10; }
+        #game-over { position: absolute; display: none; flex-direction: column; align-items: center; justify-content: center; background: rgba(0, 0, 0, 0.8); color: white; width: 100%; height: 100%; z-index: 20; font-family: sans-serif; }
+        #game-over h1 { color: #ff4d4d; font-size: 40px; margin: 0; }
+        #game-over p { font-size: 20px; margin: 10px 0; }
     </style>
 </head>
 <body>
     <div id="ui">Bones: 0 | Best: 0</div>
-    
     <div id="game-over">
         <h1>GAME OVER</h1>
         <p id="final-score">Score: 0</p>
         <p id="high-score" style="color: #ffd700;">Record: 0</p>
-        <p class="hint">Tap anywhere to Restart</p>
+        <p style="font-size: 14px; color: #aaa;">Tap to Restart</p>
     </div>
-
     <canvas id="game"></canvas>
 
     <script>
@@ -41,8 +28,6 @@
         const ctx = canvas.getContext('2d');
         const scoreElement = document.getElementById('ui');
         const gameOverScreen = document.getElementById('game-over');
-        const finalScoreText = document.getElementById('final-score');
-        const highScoreText = document.getElementById('high-score');
 
         function resize() {
             const ratio = 16 / 9;
@@ -54,14 +39,14 @@
         window.addEventListener('resize', resize);
         resize();
 
-        // Завантаження ресурсів
+        // Картинки (впевнись, що на GitHub вони мають саме такі назви!)
         const imgDog = new Image(); imgDog.src = 'dog.png'; 
         const imgCat = new Image(); imgCat.src = 'cat.png';
         const imgBone = new Image(); imgBone.src = 'bone.png';
         const imgHouse = new Image(); imgHouse.src = 'house.png';
 
         let score = 0;
-        let highScore = localStorage.getItem('beagleHighScore') || 0;
+        let highScore = localStorage.getItem('beagleRecord') || 0;
         let gameSpeed = 5;
         let isGameOver = false;
         const gravity = 0.6;
@@ -71,49 +56,41 @@
         let bones = [];
         let clouds = [];
 
-        // Оновлюємо UI на початку
-        scoreElement.innerText = `Bones: 0 | Best: ${highScore}`;
-
-        function createCloud() {
-            return { x: canvas.width + Math.random() * 200, y: Math.random() * (canvas.height * 0.4), w: 60, h: 30, speed: 0.5 + Math.random() };
+        // Гарні маленькі хмаринки
+        function createCloud(startX) {
+            return {
+                x: startX,
+                y: Math.random() * (canvas.height * 0.35),
+                w: 40 + Math.random() * 40,
+                speed: 0.3 + Math.random() * 0.5
+            };
         }
+        for(let i=0; i<6; i++) clouds.push(createCloud(Math.random() * canvas.width));
 
-        for(let i=0; i<5; i++) {
-            let c = createCloud(); c.x = Math.random() * canvas.width; clouds.push(c);
-        }
-
-        function spawn() {
+        // Виправлений спавн без зависань
+        let spawnTimer = 0;
+        function update(time = 0) {
             if (isGameOver) return;
-            if (Math.random() < 0.01) {
-                obstacles.push({ x: canvas.width, y: canvas.height * 0.85 - 55, w: 55, h: 55, type: Math.random() > 0.5 ? 'cat' : 'house' });
-            }
-            if (Math.random() < 0.015) {
-                bones.push({ x: canvas.width, y: canvas.height * 0.4 + Math.random() * 100, w: 35, h: 25 });
-            }
-            setTimeout(spawn, 100);
-        }
 
-        function update() {
-            if (isGameOver) return;
             ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-            // Хмари
-            ctx.fillStyle = "white";
+            // 1. Хмари
+            ctx.fillStyle = "rgba(255, 255, 255, 0.8)";
             clouds.forEach(c => {
                 c.x -= c.speed;
                 ctx.beginPath();
-                ctx.arc(c.x, c.y, 20, 0, Math.PI * 2);
-                ctx.arc(c.x + 20, c.y - 10, 25, 0, Math.PI * 2);
-                ctx.arc(c.x + 45, c.y, 20, 0, Math.PI * 2);
+                ctx.arc(c.x, c.y, 15, 0, Math.PI * 2);
+                ctx.arc(c.x + 15, c.y - 10, 15, 0, Math.PI * 2);
+                ctx.arc(c.x + 30, c.y, 15, 0, Math.PI * 2);
                 ctx.fill();
-                if (c.x + 100 < 0) { Object.assign(c, createCloud()); c.x = canvas.width; }
+                if (c.x + 60 < 0) { Object.assign(c, createCloud(canvas.width + 50)); }
             });
 
-            // Земля
+            // 2. Земля
             ctx.fillStyle = '#458B00';
             ctx.fillRect(0, canvas.height * 0.85, canvas.width, canvas.height * 0.15);
 
-            // Собака
+            // 3. Собака
             dog.dy += gravity;
             dog.y += dog.dy;
             if (dog.y + dog.h > canvas.height * 0.85) {
@@ -123,18 +100,27 @@
             }
             ctx.drawImage(imgDog, dog.x, dog.y, dog.w, dog.h);
 
-            // Перешкоди
+            // 4. Спавн об'єктів за часом
+            spawnTimer++;
+            if (spawnTimer % 120 === 0) { // Кожні ~2 секунди
+                if (Math.random() > 0.3) {
+                    obstacles.push({ x: canvas.width, y: canvas.height * 0.85 - 55, w: 55, h: 55, type: Math.random() > 0.5 ? 'cat' : 'house' });
+                } else {
+                    bones.push({ x: canvas.width, y: canvas.height * 0.5, w: 35, h: 25 });
+                }
+            }
+
+            // 5. Перешкоди
             obstacles.forEach((obs, i) => {
                 obs.x -= gameSpeed;
                 ctx.drawImage(obs.type === 'cat' ? imgCat : imgHouse, obs.x, obs.y, obs.w, obs.h);
-                
                 if (dog.x < obs.x + obs.w - 15 && dog.x + dog.w > obs.x + 15 && dog.y < obs.y + obs.h - 10 && dog.y + dog.h > obs.y + 10) {
                     endGame();
                 }
                 if (obs.x + obs.w < 0) obstacles.splice(i, 1);
             });
 
-            // Кістки
+            // 6. Кістки
             bones.forEach((b, i) => {
                 b.x -= gameSpeed;
                 ctx.drawImage(imgBone, b.x, b.y, b.w, b.h);
@@ -145,7 +131,7 @@
                 }
             });
 
-            gameSpeed += 0.001;
+            gameSpeed += 0.0005;
             requestAnimationFrame(update);
         }
 
@@ -153,35 +139,30 @@
             isGameOver = true;
             if (score > highScore) {
                 highScore = score;
-                localStorage.setItem('beagleHighScore', highScore);
+                localStorage.setItem('beagleRecord', highScore);
             }
-            finalScoreText.innerText = `Score: ${score}`;
-            highScoreText.innerText = `Record: ${highScore}`;
+            document.getElementById('final-score').innerText = `Score: ${score}`;
+            document.getElementById('high-score').innerText = `Record: ${highScore}`;
             gameOverScreen.style.display = 'flex';
         }
 
-        function resetGame() {
-            score = 0;
-            gameSpeed = 5;
-            isGameOver = false;
-            obstacles = [];
-            bones = [];
-            dog.y = 0;
-            dog.dy = 0;
+        function restart() {
+            score = 0; gameSpeed = 5; isGameOver = false; spawnTimer = 0;
+            obstacles = []; bones = []; dog.y = 0;
             scoreElement.innerText = `Bones: 0 | Best: ${highScore}`;
             gameOverScreen.style.display = 'none';
             update();
         }
 
-        const handleAction = () => { 
-            if (isGameOver) { resetGame(); }
-            else if (dog.grounded) { dog.dy = -dog.jump; dog.grounded = false; } 
+        const action = (e) => { 
+            if (isGameOver) restart(); 
+            else if (dog.grounded) { dog.dy = -dog.jump; dog.grounded = false; }
+            if(e.type === 'touchstart') e.preventDefault();
         };
+        window.addEventListener('touchstart', action, {passive: false});
+        window.addEventListener('mousedown', action);
 
-        window.addEventListener('touchstart', (e) => { handleAction(); e.preventDefault(); }, {passive: false});
-        window.addEventListener('mousedown', handleAction);
-
-        spawn();
+        scoreElement.innerText = `Bones: 0 | Best: ${highScore}`;
         update();
     </script>
 </body>
