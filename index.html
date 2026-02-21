@@ -3,11 +3,38 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Beagle Run</title>
+    <title>Beagle Run - Centered</title>
     <style>
-        body { margin: 0; padding: 0; overflow: hidden; background: #87CEEB; touch-action: manipulation; }
-        canvas { display: block; background: #90EE90; border-bottom: 20px solid #556B2F; }
-        #ui { position: absolute; top: 20px; left: 20px; color: white; font-family: sans-serif; font-size: 28px; font-weight: bold; text-shadow: 2px 2px 4px rgba(0,0,0,0.5); }
+        body { 
+            margin: 0; 
+            padding: 0; 
+            overflow: hidden; 
+            background: #2c3e50; /* Темний фон навколо гри */
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            touch-action: manipulation;
+        }
+        canvas { 
+            display: block; 
+            background: #87CEEB; /* Колір неба */
+            box-shadow: 0 0 20px rgba(0,0,0,0.5);
+            max-width: 100%;
+            max-height: 100%;
+        }
+        #ui { 
+            position: absolute; 
+            top: 40px; 
+            left: 50%;
+            transform: translateX(-50%);
+            color: white; 
+            font-family: sans-serif; 
+            font-size: 24px; 
+            font-weight: bold; 
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.8);
+            z-index: 10;
+        }
     </style>
 </head>
 <body>
@@ -19,30 +46,33 @@
         const ctx = canvas.getContext('2d');
         const scoreElement = document.getElementById('ui');
 
-        canvas.width = window.innerWidth;
-        canvas.height = window.innerHeight;
+        // Робимо фіксоване ігрове поле 16:9 для стабільності
+        canvas.width = 800;
+        canvas.height = 450;
 
-        // Підключаємо твої файли за назвами зі скриншота 1129.png
+        // Підключення твоїх картинок
         const imgDog = new Image(); imgDog.src = '1771680846085.png';
         const imgCat = new Image(); imgCat.src = '1771681045024.png';
         const imgBone = new Image(); imgBone.src = '1771681214266.png';
         const imgHouse = new Image(); imgHouse.src = '1771681328734.png';
 
         let score = 0;
-        let gameSpeed = 5;
+        let gameSpeed = 6;
         let isGameOver = false;
-        const gravity = 0.6;
-        const dog = { x: 50, y: canvas.height - 150, w: 70, h: 70, dy: 0, jump: 13, grounded: false };
+        const gravity = 0.8;
+        const groundY = 380; // Лінія землі (трохи вище низу полотна)
+
+        const dog = { x: 80, y: groundY - 70, w: 70, h: 70, dy: 0, jump: 15, grounded: false };
         const obstacles = [];
         const bones = [];
 
         function spawn() {
             if (isGameOver) return;
-            if (Math.random() < 0.01) {
-                obstacles.push({ x: canvas.width, y: canvas.height - 90, w: 60, h: 60, type: Math.random() > 0.5 ? 'cat' : 'house' });
+            if (Math.random() < 0.015) {
+                obstacles.push({ x: canvas.width, y: groundY - 60, w: 60, h: 60, type: Math.random() > 0.5 ? 'cat' : 'house' });
             }
             if (Math.random() < 0.02) {
-                bones.push({ x: canvas.width, y: canvas.height - 160 - Math.random() * 50, w: 40, h: 30 });
+                bones.push({ x: canvas.width, y: groundY - 150, w: 40, h: 30 });
             }
             requestAnimationFrame(spawn);
         }
@@ -51,25 +81,38 @@
             if (isGameOver) return;
             ctx.clearRect(0, 0, canvas.width, canvas.height);
 
+            // Малюємо траву (землю)
+            ctx.fillStyle = '#556B2F';
+            ctx.fillRect(0, groundY, canvas.width, canvas.height - groundY);
+
+            // Собака
             dog.dy += gravity;
             dog.y += dog.dy;
-            if (dog.y + dog.h > canvas.height - 20) {
-                dog.y = canvas.height - 20 - dog.h;
+            if (dog.y + dog.h > groundY) {
+                dog.y = groundY - dog.h;
                 dog.dy = 0;
                 dog.grounded = true;
             }
+
+            // Малюємо з ефектом видалення білого фону
+            ctx.globalCompositeOperation = 'multiply';
             ctx.drawImage(imgDog, dog.x, dog.y, dog.w, dog.h);
 
+            // Перешкоди
             obstacles.forEach((obs, i) => {
                 obs.x -= gameSpeed;
                 ctx.drawImage(obs.type === 'cat' ? imgCat : imgHouse, obs.x, obs.y, obs.w, obs.h);
+                
+                // Зіткнення
                 if (dog.x < obs.x + obs.w - 15 && dog.x + dog.w > obs.x + 15 && dog.y < obs.y + obs.h - 15 && dog.y + dog.h > obs.y + 15) {
                     isGameOver = true;
                     alert("Гра закінчена! Твій результат: " + score);
                     location.reload();
                 }
+                if (obs.x + obs.w < 0) obstacles.splice(i, 1);
             });
 
+            // Кістки
             bones.forEach((b, i) => {
                 b.x -= gameSpeed;
                 ctx.drawImage(imgBone, b.x, b.y, b.w, b.h);
@@ -78,16 +121,23 @@
                     scoreElement.innerText = "Bones: " + score;
                     bones.splice(i, 1);
                 }
+                if (b.x + b.w < 0) bones.splice(i, 1);
             });
 
+            ctx.globalCompositeOperation = 'source-over';
             gameSpeed += 0.001;
             requestAnimationFrame(update);
         }
 
+        // Керування (тапай по всьому екрану)
         window.addEventListener('touchstart', (e) => { 
             if (dog.grounded) { dog.dy = -dog.jump; dog.grounded = false; }
             e.preventDefault();
         }, {passive: false});
+
+        window.addEventListener('mousedown', () => {
+            if (dog.grounded) { dog.dy = -dog.jump; dog.grounded = false; }
+        });
 
         spawn();
         update();
