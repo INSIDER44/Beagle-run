@@ -5,9 +5,9 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Beagle Run</title>
     <style>
-        body { margin: 0; padding: 0; overflow: hidden; background: #87CEEB; font-family: sans-serif; touch-action: manipulation; }
-        canvas { display: block; background: #90EE90; }
-        #ui { position: absolute; top: 20px; left: 20px; color: white; font-size: 24px; font-weight: bold; text-shadow: 2px 2px 4px rgba(0,0,0,0.5); }
+        body { margin: 0; padding: 0; overflow: hidden; background: #87CEEB; touch-action: manipulation; }
+        canvas { display: block; background: #90EE90; border-bottom: 20px solid #556B2F; }
+        #ui { position: absolute; top: 20px; left: 20px; color: white; font-family: sans-serif; font-size: 28px; font-weight: bold; text-shadow: 2px 2px 4px rgba(0,0,0,0.5); }
     </style>
 </head>
 <body>
@@ -22,84 +22,57 @@
         canvas.width = window.innerWidth;
         canvas.height = window.innerHeight;
 
+        // Підключаємо твої файли за назвами зі скриншота 1129.png
+        const imgDog = new Image(); imgDog.src = '1771680846085.png';
+        const imgCat = new Image(); imgCat.src = '1771681045024.png';
+        const imgBone = new Image(); imgBone.src = '1771681214266.png';
+        const imgHouse = new Image(); imgHouse.src = '1771681328734.png';
+
         let score = 0;
         let gameSpeed = 5;
         let isGameOver = false;
         const gravity = 0.6;
-
-        const dog = { x: 50, y: canvas.height - 150, w: 40, h: 30, dy: 0, jump: 12, grounded: false };
+        const dog = { x: 50, y: canvas.height - 150, w: 70, h: 70, dy: 0, jump: 13, grounded: false };
         const obstacles = [];
         const bones = [];
 
-        // Функція малювання "Піксельного Бігля"
-        function drawDog(x, y) {
-            ctx.fillStyle = '#8B4513'; // Коричневий
-            ctx.fillRect(x, y, 40, 25); // Тіло
-            ctx.fillStyle = 'white';
-            ctx.fillRect(x + 30, y + 5, 10, 10); // Мордочка
-            ctx.fillStyle = 'black';
-            ctx.fillRect(x + 5, y - 5, 10, 15); // Вухо
-        }
-
-        // Малювання кістки
-        function drawBone(x, y) {
-            ctx.fillStyle = 'white';
-            ctx.fillRect(x, y, 20, 10);
-            ctx.fillRect(x-5, y-5, 10, 10);
-            ctx.fillRect(x+15, y-5, 10, 10);
-        }
-
-        // Малювання кота (перешкода)
-        function drawCat(x, y) {
-            ctx.fillStyle = 'black';
-            ctx.fillRect(x, y, 30, 20); // Тіло
-            ctx.fillRect(x + 20, y - 10, 10, 10); // Голова
-            ctx.fillStyle = 'green';
-            ctx.fillRect(x + 25, y - 5, 2, 2); // Око
-        }
-
-        function spawnObstacle() {
+        function spawn() {
             if (isGameOver) return;
-            obstacles.push({ x: canvas.width, y: canvas.height - 50, w: 30, h: 20 });
-            setTimeout(spawnObstacle, 1500 + Math.random() * 2000);
-        }
-
-        function spawnBone() {
-            if (isGameOver) return;
-            bones.push({ x: canvas.width, y: canvas.height - 150, w: 20, h: 10 });
-            setTimeout(spawnBone, 1000 + Math.random() * 1500);
+            if (Math.random() < 0.01) {
+                obstacles.push({ x: canvas.width, y: canvas.height - 90, w: 60, h: 60, type: Math.random() > 0.5 ? 'cat' : 'house' });
+            }
+            if (Math.random() < 0.02) {
+                bones.push({ x: canvas.width, y: canvas.height - 160 - Math.random() * 50, w: 40, h: 30 });
+            }
+            requestAnimationFrame(spawn);
         }
 
         function update() {
             if (isGameOver) return;
             ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-            // Гравітація пса
             dog.dy += gravity;
             dog.y += dog.dy;
-            if (dog.y + dog.h > canvas.height - 30) {
-                dog.y = canvas.height - 30 - dog.h;
+            if (dog.y + dog.h > canvas.height - 20) {
+                dog.y = canvas.height - 20 - dog.h;
                 dog.dy = 0;
                 dog.grounded = true;
             }
+            ctx.drawImage(imgDog, dog.x, dog.y, dog.w, dog.h);
 
-            drawDog(dog.x, dog.y);
-
-            // Перешкоди
             obstacles.forEach((obs, i) => {
                 obs.x -= gameSpeed;
-                drawCat(obs.x, obs.y);
-                if (dog.x < obs.x + obs.w && dog.x + dog.w > obs.x && dog.y < obs.y + obs.h && dog.y + dog.h > obs.y) {
+                ctx.drawImage(obs.type === 'cat' ? imgCat : imgHouse, obs.x, obs.y, obs.w, obs.h);
+                if (dog.x < obs.x + obs.w - 15 && dog.x + dog.w > obs.x + 15 && dog.y < obs.y + obs.h - 15 && dog.y + dog.h > obs.y + 15) {
                     isGameOver = true;
-                    alert("Game Over! Bones: " + score);
+                    alert("Гра закінчена! Твій результат: " + score);
                     location.reload();
                 }
             });
 
-            // Кістки
             bones.forEach((b, i) => {
                 b.x -= gameSpeed;
-                drawBone(b.x, b.y);
+                ctx.drawImage(imgBone, b.x, b.y, b.w, b.h);
                 if (dog.x < b.x + b.w && dog.x + dog.w > b.x && dog.y < b.y + b.h && dog.y + dog.h > b.y) {
                     score++;
                     scoreElement.innerText = "Bones: " + score;
@@ -111,11 +84,12 @@
             requestAnimationFrame(update);
         }
 
-        window.addEventListener('touchstart', () => { if (dog.grounded) { dog.dy = -dog.jump; dog.grounded = false; } });
-        window.addEventListener('mousedown', () => { if (dog.grounded) { dog.dy = -dog.jump; dog.grounded = false; } });
+        window.addEventListener('touchstart', (e) => { 
+            if (dog.grounded) { dog.dy = -dog.jump; dog.grounded = false; }
+            e.preventDefault();
+        }, {passive: false});
 
-        spawnObstacle();
-        spawnBone();
+        spawn();
         update();
     </script>
 </body>
