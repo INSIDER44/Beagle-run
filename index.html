@@ -3,11 +3,20 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Beagle Run - Hard Mode</title>
+    <title>Beagle Run - Centered</title>
     <style>
-        body { margin: 0; padding: 0; overflow: hidden; background: #1a1a1a; display: flex; justify-content: center; align-items: center; height: 100vh; }
-        canvas { display: block; background: #87CEEB; touch-action: none; box-shadow: 0 0 30px rgba(0,0,0,0.5); }
-        #ui { position: absolute; top: 5%; width: 100%; text-align: center; color: white; font-family: sans-serif; font-size: 24px; font-weight: bold; text-shadow: 2px 2px 4px #000; pointer-events: none; z-index: 10; }
+        /* Посилене центрування для мобільних пристроїв */
+        body { 
+            margin: 0; padding: 0; overflow: hidden; background: #1a1a1a; 
+            display: flex; justify-content: center; align-items: center; 
+            height: 100vh; width: 100vw;
+        }
+        canvas { 
+            display: block; background: #87CEEB; touch-action: none; 
+            box-shadow: 0 0 30px rgba(0,0,0,0.5);
+            max-width: 100%; max-height: 100%;
+        }
+        #ui { position: absolute; top: 20px; width: 100%; text-align: center; color: white; font-family: sans-serif; font-size: 24px; font-weight: bold; text-shadow: 2px 2px 4px #000; pointer-events: none; z-index: 10; }
         #game-over { position: absolute; display: none; flex-direction: column; align-items: center; justify-content: center; background: rgba(0, 0, 0, 0.8); color: white; width: 100%; height: 100%; z-index: 20; font-family: sans-serif; }
     </style>
 </head>
@@ -36,7 +45,7 @@
         window.addEventListener('resize', resize);
         resize();
 
-        // ВИКОРИСТОВУЄМО ТВОЇ НОВІ НАЗВИ ФАЙЛІВ
+        // ВИКОРИСТОВУЄМО ТВОЇ ОФІЦІЙНІ НАЗВИ
         const imgDog = new Image(); imgDog.src = '1124-removebg-preview.png';
         const imgCat = new Image(); imgCat.src = '1126-removebg-preview.png';
         const imgBone = new Image(); imgBone.src = '1127-removebg-preview.png';
@@ -47,8 +56,7 @@
         let gameSpeed = 5, isGameOver = false, spawnTimer = 0;
         const gravity = 0.6;
         
-        // Фізична позиція пса
-        let dog = { x: 50, y: 0, w: 65, h: 65, dy: 0, jump: 12, grounded: false };
+        let dog = { x: 50, y: 0, w: 65, h: 65, dy: 0, jump: 13, grounded: false };
         let obstacles = [], bones = [], clouds = [];
 
         function createCloud(x) {
@@ -60,8 +68,92 @@
             if (isGameOver) return;
             ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-            // 1. Хмарки (1176-removebg-preview.png)
+            // 1. Clouds
             clouds.forEach(c => {
+                c.x -= c.speed;
+                ctx.drawImage(imgCloud, c.x, c.y, c.w, c.h);
+                if (c.x + c.w < 0) Object.assign(c, createCloud(canvas.width + 50));
+            });
+
+            // 2. Ground
+            ctx.fillStyle = '#458B00';
+            ctx.fillRect(0, canvas.height * 0.88, canvas.width, canvas.height * 0.12);
+
+            // 3. Dog
+            dog.dy += gravity; dog.y += dog.dy;
+            if (dog.y + dog.h > canvas.height * 0.92) {
+                dog.y = canvas.height * 0.92 - dog.h;
+                dog.dy = 0; dog.grounded = true;
+            }
+            // Малюємо з ефектом занурення (+15)
+            ctx.drawImage(imgDog, dog.x, dog.y + 15, dog.w, dog.h);
+
+            // 4. Spawning (Double obstacles included)
+            spawnTimer++;
+            if (spawnTimer > 100) {
+                const type = Math.random() > 0.5 ? 'cat' : 'house';
+                const isDouble = Math.random() > 0.3; 
+                
+                obstacles.push({ x: canvas.width, y: canvas.height * 0.92 - 55, w: 55, h: 55, type: type });
+                if (isDouble) {
+                    obstacles.push({ x: canvas.width + 55, y: canvas.height * 0.92 - 55, w: 55, h: 55, type: type });
+                }
+                if (Math.random() > 0.5) bones.push({ x: canvas.width + 100, y: canvas.height * 0.5, w: 35, h: 25 });
+                spawnTimer = 0;
+            }
+
+            // 5. Obstacles
+            obstacles.forEach((obs, i) => {
+                obs.x -= gameSpeed;
+                // Малюємо з ефектом занурення (+18)
+                ctx.drawImage(obs.type === 'cat' ? imgCat : imgHouse, obs.x, obs.y + 18, obs.w, obs.h);
+                if (dog.x < obs.x + obs.w - 15 && dog.x + dog.w > obs.x + 15 && dog.y < obs.y + obs.h - 10 && dog.y + dog.h > obs.y + 10) endGame();
+                if (obs.x + obs.w < 0) obstacles.splice(i, 1);
+            });
+
+            // 6. Bones
+            bones.forEach((b, i) => {
+                b.x -= gameSpeed;
+                ctx.drawImage(imgBone, b.x, b.y, b.w, b.h);
+                if (dog.x < b.x + b.w && dog.x + dog.w > b.x && dog.y < b.y + b.h && dog.y + dog.h > b.y) {
+                    score++;
+                    scoreElement.innerText = `Bones: ${score} | Best: ${highScore}`;
+                    bones.splice(i, 1);
+                }
+            });
+
+            gameSpeed += 0.0006;
+            requestAnimationFrame(update);
+        }
+
+        function endGame() {
+            isGameOver = true;
+            if (score > highScore) { highScore = score; localStorage.setItem('beagleBest', highScore); }
+            document.getElementById('final-score').innerText = `Score: ${score}`;
+            document.getElementById('high-score').innerText = `Best: ${highScore}`;
+            gameOverScreen.style.display = 'flex';
+        }
+
+        function restart() {
+            score = 0; gameSpeed = 5; isGameOver = false; spawnTimer = 0;
+            obstacles = []; bones = []; dog.y = 0;
+            gameOverScreen.style.display = 'none';
+            scoreElement.innerText = `Bones: 0 | Best: ${highScore}`;
+            update();
+        }
+
+        const action = (e) => { 
+            if (isGameOver) restart(); else if (dog.grounded) { dog.dy = -13; dog.grounded = false; }
+            if(e.type === 'touchstart') e.preventDefault();
+        };
+        window.addEventListener('touchstart', action, {passive: false});
+        window.addEventListener('mousedown', action);
+
+        scoreElement.innerText = `Bones: 0 | Best: ${highScore}`;
+        update();
+    </script>
+</body>
+</html>
                 c.x -= c.speed;
                 ctx.drawImage(imgCloud, c.x, c.y, c.w, c.h);
                 if (c.x + c.w < 0) Object.assign(c, createCloud(canvas.width + 50));
