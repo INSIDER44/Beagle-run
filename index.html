@@ -3,27 +3,21 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Beagle Run - Full View</title>
+    <title>Beagle Run - Mechanical Fix</title>
     <style>
         html, body { 
             margin: 0; padding: 0; width: 100%; height: 100%; 
             background: #1a1a1a; overflow: hidden; 
             display: flex; justify-content: center; align-items: center;
         }
-        
         canvas { 
-            display: block; 
-            background: #87CEEB; 
-            touch-action: none; 
-            /* Масштабуємо canvas так, щоб він займав максимум місця */
-            width: 100vw; 
-            height: 56.25vw; /* Співвідношення 16:9 */
-            max-height: 100vh;
-            max-width: 177.78vh;
+            display: block; background: #87CEEB; touch-action: none; 
+            /* Розмір на весь екран */
+            width: 100vw; height: 56.25vw; 
+            max-height: 100vh; max-width: 177.78vh;
             box-shadow: 0 0 50px rgba(0,0,0,0.8);
         }
-
-        #ui { position: absolute; top: 15px; width: 100%; text-align: center; color: white; font-family: sans-serif; font-size: 22px; font-weight: bold; text-shadow: 2px 2px 4px #000; pointer-events: none; z-index: 10; }
+        #ui { position: absolute; top: 15px; width: 100%; text-align: center; color: white; font-family: sans-serif; font-size: 24px; font-weight: bold; text-shadow: 2px 2px 4px #000; pointer-events: none; z-index: 10; }
         #game-over { position: absolute; width: 100%; height: 100%; display: none; flex-direction: column; align-items: center; justify-content: center; background: rgba(0, 0, 0, 0.85); color: white; z-index: 20; font-family: sans-serif; }
     </style>
 </head>
@@ -43,11 +37,9 @@
         const scoreElement = document.getElementById('ui');
         const gameOverScreen = document.getElementById('game-over');
 
-        // Встановлюємо високу внутрішню роздільну здатність для чіткості
         canvas.width = 1280;
         canvas.height = 720;
 
-        // Твої оновлені файли
         const imgDog = new Image(); imgDog.src = '1124-removebg-preview.png';
         const imgCat = new Image(); imgCat.src = '1126-removebg-preview.png';
         const imgBone = new Image(); imgBone.src = '1127-removebg-preview.png';
@@ -56,13 +48,15 @@
 
         let score = 0, highScore = localStorage.getItem('beagleBest') || 0;
         let gameSpeed = 7, isGameOver = false, spawnTimer = 0;
-        const gravity = 0.8;
+        let lastSpeedUpdate = Date.now(); // Для контролю 15 секунд
+        const gravity = 1.0;
         
-        let dog = { x: 100, y: 0, w: 130, h: 130, dy: 0, jump: 23, grounded: false };
+        // Підняли персонажа (y на рівні groundY - h + зміщення)
+        let dog = { x: 100, y: 0, w: 120, h: 120, dy: 0, jump: 24, grounded: false };
         let obstacles = [], bones = [], clouds = [];
 
         function createCloud(x) {
-            return { x: x, y: Math.random() * 180, w: 160, h: 100, speed: 0.5 + Math.random() * 1.5 };
+            return { x: x, y: Math.random() * 180, w: 160, h: 100, speed: 1 + Math.random() };
         }
         for(let i=0; i<4; i++) clouds.push(createCloud(Math.random() * canvas.width));
 
@@ -70,50 +64,57 @@
             if (isGameOver) return;
             ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-            // 1. Хмари: тепер вони рухаються ВЛІВО (назустріч)
+            // 1. Пришвидшення кожні 15 секунд
+            let now = Date.now();
+            if (now - lastSpeedUpdate > 15000) {
+                gameSpeed += 1.5;
+                lastSpeedUpdate = now;
+                console.log("Speed increased to: " + gameSpeed);
+            }
+
+            // 2. Хмари (рух вліво)
             clouds.forEach(c => {
-                c.x -= c.speed; // Віднімаємо швидкість, щоб вони йшли вліво
+                c.x -= c.speed;
                 ctx.drawImage(imgCloud, c.x, c.y, c.w, c.h);
-                if (c.x + c.w < 0) { // Якщо хмара вийшла за лівий край
-                    Object.assign(c, createCloud(canvas.width + 50));
-                }
+                if (c.x + c.w < 0) Object.assign(c, createCloud(canvas.width + 50));
             });
 
-            // 2. Земля
+            // 3. Трава
             ctx.fillStyle = '#458B00';
             const groundY = canvas.height * 0.85;
             ctx.fillRect(0, groundY, canvas.width, canvas.height * 0.15);
 
-            // 3. Собака: приземлення з зануренням
-            dog.dy += gravity; dog.y += dog.dy;
-            if (dog.y + dog.h > groundY + 50) {
-                dog.y = groundY + 50 - dog.h;
+            // 4. Собака (приземлення ПОВЕРХ трави)
+            dog.dy += gravity; 
+            dog.y += dog.dy;
+            if (dog.y + dog.h > groundY + 15) { // Змінено для підняття над травою
+                dog.y = groundY + 15 - dog.h;
                 dog.dy = 0; dog.grounded = true;
             }
             ctx.drawImage(imgDog, dog.x, dog.y, dog.w, dog.h);
 
-            // 4. Спавн перешкод
+            // 5. Спавн
             spawnTimer++;
-            if (spawnTimer > 85) {
+            if (spawnTimer > (100 - gameSpeed * 2)) { // Частота спавну залежить від швидкості
                 const type = Math.random() > 0.5 ? 'cat' : 'house';
                 const isDouble = Math.random() > 0.35;
-                obstacles.push({ x: canvas.width, y: groundY - 25, w: 110, h: 110, type: type });
+                obstacles.push({ x: canvas.width, y: groundY - 85, w: 100, h: 100, type: type });
                 if (isDouble) {
-                    obstacles.push({ x: canvas.width + 115, y: groundY - 25, w: 110, h: 110, type: type });
+                    obstacles.push({ x: canvas.width + 105, y: groundY - 85, w: 100, h: 100, type: type });
                 }
-                if (Math.random() > 0.5) bones.push({ x: canvas.width + 200, y: 320, w: 70, h: 50 });
+                if (Math.random() > 0.5) bones.push({ x: canvas.width + 200, y: 300, w: 60, h: 40 });
                 spawnTimer = 0;
             }
 
-            // 5. Перешкоди
+            // 6. Перешкоди (підняті над травою)
             obstacles.forEach((obs, i) => {
                 obs.x -= gameSpeed;
                 ctx.drawImage(obs.type === 'cat' ? imgCat : imgHouse, obs.x, obs.y, obs.w, obs.h);
-                if (dog.x < obs.x + obs.w - 35 && dog.x + dog.w > obs.x + 35 && dog.y < obs.y + obs.h - 25 && dog.y + dog.h > obs.y + 25) endGame();
+                if (dog.x < obs.x + obs.w - 30 && dog.x + dog.w > obs.x + 30 && dog.y < obs.y + obs.h - 20 && dog.y + dog.h > obs.y + 20) endGame();
                 if (obs.x + obs.w < -200) obstacles.splice(i, 1);
             });
 
-            // 6. Кістки
+            // 7. Кістки
             bones.forEach((b, i) => {
                 b.x -= gameSpeed;
                 ctx.drawImage(imgBone, b.x, b.y, b.w, b.h);
@@ -124,7 +125,6 @@
                 }
             });
 
-            gameSpeed += 0.0012;
             requestAnimationFrame(update);
         }
 
@@ -138,18 +138,29 @@
 
         function restart() {
             score = 0; gameSpeed = 7; isGameOver = false; spawnTimer = 0;
+            lastSpeedUpdate = Date.now();
             obstacles = []; bones = []; dog.y = 0;
             gameOverScreen.style.display = 'none';
             scoreElement.innerText = `Bones: 0 | Best: ${highScore}`;
             update();
         }
 
-        const action = (e) => { 
-            if (isGameOver) restart(); else if (dog.grounded) { dog.dy = -26; dog.grounded = false; }
-            if(e.type === 'touchstart') e.preventDefault();
+        const handleAction = (e) => {
+            // Запобігаємо пришвидшенню гри при натисканні (блокуємо дефолтні події браузера)
+            if (isGameOver) {
+                restart();
+            } else if (dog.grounded) {
+                dog.dy = -dog.jump;
+                dog.grounded = false;
+            }
+            if (e.cancelable) e.preventDefault(); 
         };
-        window.addEventListener('touchstart', action, {passive: false});
-        window.addEventListener('mousedown', action);
+
+        // Використовуємо passive: false, щоб прибрати затримки та системне реагування
+        window.addEventListener('touchstart', handleAction, { passive: false });
+        window.addEventListener('mousedown', (e) => {
+            if (e.button === 0) handleAction(e);
+        });
 
         scoreElement.innerText = `Bones: 0 | Best: ${highScore}`;
         update();
