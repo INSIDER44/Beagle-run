@@ -3,38 +3,21 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Beagle Run - Final Version</title>
+    <title>Beagle Run - Fair Play Edition</title>
     <style>
-        /* Центрування та повноекранний режим */
         html, body { 
             margin: 0; padding: 0; width: 100%; height: 100%; 
             background: #1a1a1a; overflow: hidden; 
             display: flex; justify-content: center; align-items: center;
         }
-        
         canvas { 
-            display: block; 
-            background: #87CEEB; 
-            touch-action: none; 
-            /* Адаптивний розмір 16:9 */
-            width: 100vw; 
-            height: 56.25vw; 
-            max-height: 100vh;
-            max-width: 177.78vh;
+            display: block; background: #87CEEB; touch-action: none; 
+            width: 100vw; height: 56.25vw; 
+            max-height: 100vh; max-width: 177.78vh;
             box-shadow: 0 0 50px rgba(0,0,0,0.8);
         }
-
-        #ui { 
-            position: absolute; top: 15px; width: 100%; text-align: center; 
-            color: white; font-family: sans-serif; font-size: 24px; font-weight: bold; 
-            text-shadow: 2px 2px 4px #000; pointer-events: none; z-index: 10; 
-        }
-
-        #game-over { 
-            position: absolute; width: 100%; height: 100%; 
-            display: none; flex-direction: column; align-items: center; justify-content: center; 
-            background: rgba(0, 0, 0, 0.85); color: white; z-index: 20; font-family: sans-serif; 
-        }
+        #ui { position: absolute; top: 15px; width: 100%; text-align: center; color: white; font-family: sans-serif; font-size: 24px; font-weight: bold; text-shadow: 2px 2px 4px #000; pointer-events: none; z-index: 10; }
+        #game-over { position: absolute; width: 100%; height: 100%; display: none; flex-direction: column; align-items: center; justify-content: center; background: rgba(0, 0, 0, 0.85); color: white; z-index: 20; font-family: sans-serif; }
     </style>
 </head>
 <body>
@@ -53,11 +36,10 @@
         const scoreElement = document.getElementById('ui');
         const gameOverScreen = document.getElementById('game-over');
 
-        // Внутрішня роздільна здатність для чіткої графіки
         canvas.width = 1280;
         canvas.height = 720;
 
-        // Використовуємо твої офіційні назви файлів
+        // Твої файли
         const imgDog = new Image(); imgDog.src = '1124-removebg-preview.png';
         const imgCat = new Image(); imgCat.src = '1126-removebg-preview.png';
         const imgBone = new Image(); imgBone.src = '1127-removebg-preview.png';
@@ -69,8 +51,8 @@
         let lastSpeedUpdate = Date.now();
         const gravity = 1.0;
         
-        // Позиція пса (y підібрано так, щоб він стояв ПОВЕРХ трави)
-        let dog = { x: 100, y: 0, w: 120, h: 120, dy: 0, jump: 24, grounded: false };
+        // Позиція собаки
+        let dog = { x: 100, y: 0, w: 125, h: 125, dy: 0, jump: 25, grounded: false };
         let obstacles = [], bones = [], clouds = [];
 
         function createCloud(x) {
@@ -82,72 +64,71 @@
             if (isGameOver) return;
             ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-            // 1. Механіка пришвидшення: +1.5 швидкості кожні 15 секунд
+            // 1. Пришвидшення (кожні 15 сек)
             let now = Date.now();
             if (now - lastSpeedUpdate > 15000) {
                 gameSpeed += 1.5;
                 lastSpeedUpdate = now;
             }
 
-            // 2. Хмари: рух ВЛІВО назустріч псу
+            // 2. Хмари (вліво)
             clouds.forEach(c => {
                 c.x -= c.speed;
                 ctx.drawImage(imgCloud, c.x, c.y, c.w, c.h);
                 if (c.x + c.w < 0) Object.assign(c, createCloud(canvas.width + 50));
             });
 
-            // 3. Трава (Земля)
+            // 3. Трава
             ctx.fillStyle = '#458B00';
             const groundY = canvas.height * 0.85;
             ctx.fillRect(0, groundY, canvas.width, canvas.height * 0.15);
 
-            // 4. Собака: фізика та приземлення
+            // 4. Собака (приземлення зверху трави)
             dog.dy += gravity; 
             dog.y += dog.dy;
-            if (dog.y + dog.h > groundY + 15) { // +15 для візуального приземлення на поверхню
-                dog.y = groundY + 15 - dog.h;
-                dog.dy = 0; 
-                dog.grounded = true;
+            if (dog.y + dog.h > groundY + 20) {
+                dog.y = groundY + 20 - dog.h;
+                dog.dy = 0; dog.grounded = true;
             }
             ctx.drawImage(imgDog, dog.x, dog.y, dog.w, dog.h);
 
-            // 5. Спавн перешкод та кісток
+            // 5. Спавн (Близькі подвійні об'єкти)
             spawnTimer++;
             if (spawnTimer > (100 - gameSpeed * 2)) {
                 const type = Math.random() > 0.5 ? 'cat' : 'house';
-                const isDouble = Math.random() > 0.35;
+                const isDouble = Math.random() > 0.4;
                 
-                // Перший об'єкт
-                obstacles.push({ x: canvas.width, y: groundY - 85, w: 100, h: 100, type: type });
-                
+                obstacles.push({ x: canvas.width, y: groundY - 80, w: 105, h: 105, type: type });
                 if (isDouble) {
-                    // Другий об'єкт: БЛИЖЧЕ (+75), щоб легше було перестрибнути одним разом
-                    obstacles.push({ x: canvas.width + 75, y: groundY - 85, w: 100, h: 100, type: type });
+                    // Мінімальна відстань (+65), щоб виглядали як одна перешкода
+                    obstacles.push({ x: canvas.width + 65, y: groundY - 80, w: 105, h: 105, type: type });
                 }
                 
-                if (Math.random() > 0.5) {
-                    bones.push({ x: canvas.width + 200, y: 300, w: 60, h: 40 });
-                }
+                if (Math.random() > 0.5) bones.push({ x: canvas.width + 200, y: 300, w: 65, h: 45 });
                 spawnTimer = 0;
             }
 
-            // 6. Перешкоди та колізії (більш поблажливі хітбокси)
+            // 6. Перешкоди та точні колізії
             obstacles.forEach((obs, i) => {
                 obs.x -= gameSpeed;
                 ctx.drawImage(obs.type === 'cat' ? imgCat : imgHouse, obs.x, obs.y, obs.w, obs.h);
                 
-                // Перевірка зіткнення з відступами для чесності
-                if (dog.x < obs.x + obs.w - 35 && 
-                    dog.x + dog.w > obs.x + 35 && 
-                    dog.y < obs.y + obs.h - 30 && 
-                    dog.y + dog.h > obs.y + 30) {
+                // ЧЕСНИЙ ХІТБОКС: ігноруємо порожні краї картинок
+                // Звужуємо зону зіткнення на 45 пікселів з кожного боку
+                let dogHit = { x: dog.x + 45, y: dog.y + 40, w: dog.w - 90, h: dog.h - 50 };
+                let obsHit = { x: obs.x + 45, y: obs.y + 40, w: obs.w - 90, h: obs.h - 50 };
+
+                if (dogHit.x < obsHit.x + obsHit.w &&
+                    dogHit.x + dogHit.w > obsHit.x &&
+                    dogHit.y < obsHit.y + obsHit.h &&
+                    dogHit.y + dogHit.h > obsHit.y) {
                     endGame();
                 }
                 
                 if (obs.x + obs.w < -200) obstacles.splice(i, 1);
             });
 
-            // 7. Кістки (Collectibles)
+            // 7. Кістки
             bones.forEach((b, i) => {
                 b.x -= gameSpeed;
                 ctx.drawImage(imgBone, b.x, b.y, b.w, b.h);
@@ -163,10 +144,7 @@
 
         function endGame() {
             isGameOver = true;
-            if (score > highScore) { 
-                highScore = score; 
-                localStorage.setItem('beagleBest', highScore); 
-            }
+            if (score > highScore) { highScore = score; localStorage.setItem('beagleBest', highScore); }
             document.getElementById('final-score').innerText = `Score: ${score}`;
             document.getElementById('high-score').innerText = `Best: ${highScore}`;
             gameOverScreen.style.display = 'flex';
@@ -182,20 +160,16 @@
         }
 
         const handleAction = (e) => {
-            if (isGameOver) {
-                restart();
-            } else if (dog.grounded) {
+            if (isGameOver) restart(); 
+            else if (dog.grounded) {
                 dog.dy = -dog.jump;
                 dog.grounded = false;
             }
             if (e.cancelable) e.preventDefault(); 
         };
 
-        // Керування без затримок
         window.addEventListener('touchstart', handleAction, { passive: false });
-        window.addEventListener('mousedown', (e) => {
-            if (e.button === 0) handleAction(e);
-        });
+        window.addEventListener('mousedown', (e) => { if (e.button === 0) handleAction(e); });
 
         scoreElement.innerText = `Bones: 0 | Best: ${highScore}`;
         update();
