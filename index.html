@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Beagle Run - Fair Play Edition</title>
+    <title>Beagle Run - Pro Edition</title>
     <style>
         html, body { 
             margin: 0; padding: 0; width: 100%; height: 100%; 
@@ -17,16 +17,56 @@
             box-shadow: 0 0 50px rgba(0,0,0,0.8);
         }
         #ui { position: absolute; top: 15px; width: 100%; text-align: center; color: white; font-family: sans-serif; font-size: 24px; font-weight: bold; text-shadow: 2px 2px 4px #000; pointer-events: none; z-index: 10; }
-        #game-over { position: absolute; width: 100%; height: 100%; display: none; flex-direction: column; align-items: center; justify-content: center; background: rgba(0, 0, 0, 0.85); color: white; z-index: 20; font-family: sans-serif; }
+        
+        #game-over { 
+            position: absolute; width: 100%; height: 100%; 
+            display: none; flex-direction: column; align-items: center; justify-content: center; 
+            background: rgba(0, 0, 0, 0.9); color: white; z-index: 20; font-family: sans-serif; 
+        }
+
+        #leaderboard {
+            margin-top: 10px;
+            background: rgba(255, 255, 255, 0.05);
+            padding: 15px;
+            border-radius: 12px;
+            width: 260px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        #leaderboard-list {
+            max-height: 150px;
+            overflow-y: auto;
+            margin-top: 5px;
+        }
+
+        #leaderboard-list::-webkit-scrollbar { width: 4px; }
+        #leaderboard-list::-webkit-scrollbar-thumb { background: #ffd700; border-radius: 10px; }
+
+        .score-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 5px 10px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+            font-size: 14px;
+        }
+        .score-row:nth-child(1) { color: #ffd700; font-weight: bold; font-size: 16px; }
+        
+        .restart-hint { margin-top: 15px; color: #aaa; font-size: 14px; animation: blink 1.5s infinite; }
+        @keyframes blink { 50% { opacity: 0.5; } }
     </style>
 </head>
 <body>
     <div id="ui">Bones: 0 | Best: 0</div>
     <div id="game-over">
-        <h1 style="color:#ff4d4d; font-size:45px; margin:0;">GAME OVER</h1>
-        <p id="final-score" style="font-size:26px;">Score: 0</p>
-        <p id="high-score" style="color:#ffd700;">Best: 0</p>
-        <p style="margin-top:20px; color:#aaa;">Tap to Restart</p>
+        <h1 style="color:#ff4d4d; font-size:32px; margin:0;">GAME OVER</h1>
+        <p id="final-score" style="font-size:22px; margin: 10px 0;">Your Score: 0</p>
+        
+        <div id="leaderboard">
+            <div style="font-weight:bold; text-align:center; color:#ffd700; margin-bottom:8px; letter-spacing: 1px;">🏆 TOP 20 LEADERS</div>
+            <div id="leaderboard-list"></div>
+        </div>
+        
+        <p class="restart-hint">Tap to Run Again</p>
     </div>
     <canvas id="game"></canvas>
 
@@ -39,7 +79,7 @@
         canvas.width = 1280;
         canvas.height = 720;
 
-        // Твої файли
+        // Зображення
         const imgDog = new Image(); imgDog.src = '1124-removebg-preview.png';
         const imgCat = new Image(); imgCat.src = '1126-removebg-preview.png';
         const imgBone = new Image(); imgBone.src = '1127-removebg-preview.png';
@@ -51,7 +91,11 @@
         let lastSpeedUpdate = Date.now();
         const gravity = 1.0;
         
-        // Позиція собаки
+        // Змінні для відліку
+        let countdownValue = 3;
+        let isCountdown = true;
+        let countdownTimer = 0;
+
         let dog = { x: 100, y: 0, w: 125, h: 125, dy: 0, jump: 25, grounded: false };
         let obstacles = [], bones = [], clouds = [];
 
@@ -64,71 +108,74 @@
             if (isGameOver) return;
             ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-            // 1. Пришвидшення (кожні 15 сек)
-            let now = Date.now();
-            if (now - lastSpeedUpdate > 15000) {
-                gameSpeed += 1.5;
-                lastSpeedUpdate = now;
-            }
-
-            // 2. Хмари (вліво)
+            // Малюємо фон, хмари та траву завжди (навіть під час відліку)
             clouds.forEach(c => {
-                c.x -= c.speed;
+                if (!isCountdown) c.x -= c.speed;
                 ctx.drawImage(imgCloud, c.x, c.y, c.w, c.h);
                 if (c.x + c.w < 0) Object.assign(c, createCloud(canvas.width + 50));
             });
 
-            // 3. Трава
             ctx.fillStyle = '#458B00';
             const groundY = canvas.height * 0.85;
             ctx.fillRect(0, groundY, canvas.width, canvas.height * 0.15);
 
-            // 4. Собака (приземлення зверху трави)
-            dog.dy += gravity; 
-            dog.y += dog.dy;
-            if (dog.y + dog.h > groundY + 20) {
-                dog.y = groundY + 20 - dog.h;
-                dog.dy = 0; dog.grounded = true;
+            // Логіка відліку 3, 2, 1
+            if (isCountdown) {
+                countdownTimer++;
+                if (countdownTimer >= 60) { // приблизно 1 секунда при 60fps
+                    countdownValue--;
+                    countdownTimer = 0;
+                }
+
+                if (countdownValue <= 0) {
+                    isCountdown = false;
+                }
+
+                // Малюємо собаку статично
+                ctx.drawImage(imgDog, dog.x, groundY + 20 - dog.h, dog.w, dog.h);
+
+                // Малюємо цифри відліку
+                ctx.fillStyle = "rgba(0,0,0,0.3)";
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+                ctx.fillStyle = "white";
+                ctx.font = "bold 150px sans-serif";
+                ctx.textAlign = "center";
+                ctx.shadowBlur = 15;
+                ctx.shadowColor = "black";
+                ctx.fillText(countdownValue, canvas.width / 2, canvas.height / 2 + 50);
+                ctx.shadowBlur = 0;
+
+                requestAnimationFrame(update);
+                return;
             }
+
+            // Основна ігрова логіка (починається після відліку)
+            let now = Date.now();
+            if (now - lastSpeedUpdate > 15000) { gameSpeed += 1.5; lastSpeedUpdate = now; }
+
+            dog.dy += gravity; dog.y += dog.dy;
+            if (dog.y + dog.h > groundY + 20) { dog.y = groundY + 20 - dog.h; dog.dy = 0; dog.grounded = true; }
             ctx.drawImage(imgDog, dog.x, dog.y, dog.w, dog.h);
 
-            // 5. Спавн (Близькі подвійні об'єкти)
             spawnTimer++;
             if (spawnTimer > (100 - gameSpeed * 2)) {
                 const type = Math.random() > 0.5 ? 'cat' : 'house';
                 const isDouble = Math.random() > 0.4;
-                
                 obstacles.push({ x: canvas.width, y: groundY - 80, w: 105, h: 105, type: type });
-                if (isDouble) {
-                    // Мінімальна відстань (+65), щоб виглядали як одна перешкода
-                    obstacles.push({ x: canvas.width + 65, y: groundY - 80, w: 105, h: 105, type: type });
-                }
-                
+                if (isDouble) obstacles.push({ x: canvas.width + 65, y: groundY - 80, w: 105, h: 105, type: type });
                 if (Math.random() > 0.5) bones.push({ x: canvas.width + 200, y: 300, w: 65, h: 45 });
                 spawnTimer = 0;
             }
 
-            // 6. Перешкоди та точні колізії
             obstacles.forEach((obs, i) => {
                 obs.x -= gameSpeed;
                 ctx.drawImage(obs.type === 'cat' ? imgCat : imgHouse, obs.x, obs.y, obs.w, obs.h);
-                
-                // ЧЕСНИЙ ХІТБОКС: ігноруємо порожні краї картинок
-                // Звужуємо зону зіткнення на 45 пікселів з кожного боку
                 let dogHit = { x: dog.x + 45, y: dog.y + 40, w: dog.w - 90, h: dog.h - 50 };
                 let obsHit = { x: obs.x + 45, y: obs.y + 40, w: obs.w - 90, h: obs.h - 50 };
-
-                if (dogHit.x < obsHit.x + obsHit.w &&
-                    dogHit.x + dogHit.w > obsHit.x &&
-                    dogHit.y < obsHit.y + obsHit.h &&
-                    dogHit.y + dogHit.h > obsHit.y) {
-                    endGame();
-                }
-                
+                if (dogHit.x < obsHit.x + obsHit.w && dogHit.x + dogHit.w > obsHit.x && dogHit.y < obsHit.y + obsHit.h && dogHit.y + dogHit.h > obsHit.y) endGame();
                 if (obs.x + obs.w < -200) obstacles.splice(i, 1);
             });
 
-            // 7. Кістки
             bones.forEach((b, i) => {
                 b.x -= gameSpeed;
                 ctx.drawImage(imgBone, b.x, b.y, b.w, b.h);
@@ -144,16 +191,29 @@
 
         function endGame() {
             isGameOver = true;
-            if (score > highScore) { highScore = score; localStorage.setItem('beagleBest', highScore); }
-            document.getElementById('final-score').innerText = `Score: ${score}`;
-            document.getElementById('high-score').innerText = `Best: ${highScore}`;
+            let leaders = JSON.parse(localStorage.getItem('beagleLeaders')) || [];
+            leaders.push(score);
+            leaders.sort((a, b) => b - a);
+            leaders = leaders.slice(0, 20);
+            localStorage.setItem('beagleLeaders', JSON.stringify(leaders));
+            
+            const listElement = document.getElementById('leaderboard-list');
+            listElement.innerHTML = leaders.map((s, i) => 
+                `<div class="score-row"><span>#${i+1}</span> <span>${s} 🦴</span></div>`
+            ).join('');
+
+            if (score > highScore) { 
+                highScore = score; 
+                localStorage.setItem('beagleBest', highScore); 
+            }
+            document.getElementById('final-score').innerText = `Your Score: ${score}`;
             gameOverScreen.style.display = 'flex';
         }
 
         function restart() {
             score = 0; gameSpeed = 7; isGameOver = false; spawnTimer = 0;
-            lastSpeedUpdate = Date.now();
-            obstacles = []; bones = []; dog.y = 0;
+            countdownValue = 3; isCountdown = true; countdownTimer = 0; // Скидання відліку
+            lastSpeedUpdate = Date.now(); obstacles = []; bones = []; dog.y = 0;
             gameOverScreen.style.display = 'none';
             scoreElement.innerText = `Bones: 0 | Best: ${highScore}`;
             update();
@@ -161,9 +221,9 @@
 
         const handleAction = (e) => {
             if (isGameOver) restart(); 
-            else if (dog.grounded) {
-                dog.dy = -dog.jump;
-                dog.grounded = false;
+            else if (!isCountdown && dog.grounded) { // Прыжок заборонено під час відліку
+                dog.dy = -dog.jump; 
+                dog.grounded = false; 
             }
             if (e.cancelable) e.preventDefault(); 
         };
