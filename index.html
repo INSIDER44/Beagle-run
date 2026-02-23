@@ -1,9 +1,9 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="uk">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Beagle Run - Pro Edition</title>
+    <title>Beagle Run - Sociogram Edition</title>
     <style>
         html, body { 
             margin: 0; padding: 0; width: 100%; height: 100%; 
@@ -29,12 +29,12 @@
             background: rgba(255, 255, 255, 0.05);
             padding: 15px;
             border-radius: 12px;
-            width: 260px;
+            width: 280px;
             border: 1px solid rgba(255, 255, 255, 0.1);
         }
 
         #leaderboard-list {
-            max-height: 150px;
+            max-height: 180px;
             overflow-y: auto;
             margin-top: 5px;
         }
@@ -49,9 +49,18 @@
             border-bottom: 1px solid rgba(255, 255, 255, 0.05);
             font-size: 14px;
         }
-        .score-row:nth-child(1) { color: #ffd700; font-weight: bold; font-size: 16px; }
         
-        .restart-hint { margin-top: 15px; color: #aaa; font-size: 14px; animation: blink 1.5s infinite; }
+        .player-name {
+            flex-grow: 1;
+            text-align: left;
+            margin-left: 10px;
+            color: #eee;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .restart-hint { margin-top: 15px; color: #aaa; font-size: 14px; animation: blink 1.5s infinite; cursor: pointer; }
         @keyframes blink { 50% { opacity: 0.5; } }
     </style>
 </head>
@@ -62,11 +71,11 @@
         <p id="final-score" style="font-size:22px; margin: 10px 0;">Your Score: 0</p>
         
         <div id="leaderboard">
-            <div style="font-weight:bold; text-align:center; color:#ffd700; margin-bottom:8px; letter-spacing: 1px;">🏆 TOP 20 LEADERS</div>
+            <div style="font-weight:bold; text-align:center; color:#ffd700; margin-bottom:8px; letter-spacing: 1px;">🏆 GLOBAL TOP 20</div>
             <div id="leaderboard-list"></div>
         </div>
         
-        <p class="restart-hint">Tap to Run Again</p>
+        <p class="restart-hint" onclick="restart()">Tap to Run Again</p>
     </div>
     <canvas id="game"></canvas>
 
@@ -75,6 +84,9 @@
         const ctx = canvas.getContext('2d');
         const scoreElement = document.getElementById('ui');
         const gameOverScreen = document.getElementById('game-over');
+
+        // Конфігурація Sociogram
+        const SG_API_KEY = '22de15497bc8c6ed288b63698e87409311c6bf93cb50c0ffefdaa858f028578e';
 
         canvas.width = 1280;
         canvas.height = 720;
@@ -91,7 +103,6 @@
         let lastSpeedUpdate = Date.now();
         const gravity = 1.0;
         
-        // Змінні для відліку
         let countdownValue = 3;
         let isCountdown = true;
         let countdownTimer = 0;
@@ -104,11 +115,17 @@
         }
         for(let i=0; i<4; i++) clouds.push(createCloud(Math.random() * canvas.width));
 
+        async function getSociogramUser() {
+            if (window.Sociogram && window.Sociogram.getUser) {
+                return window.Sociogram.getUser();
+            }
+            return { name: "Beagle Player" };
+        }
+
         function update() {
             if (isGameOver) return;
             ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-            // Малюємо фон, хмари та траву завжди (навіть під час відліку)
             clouds.forEach(c => {
                 if (!isCountdown) c.x -= c.speed;
                 ctx.drawImage(imgCloud, c.x, c.y, c.w, c.h);
@@ -119,37 +136,22 @@
             const groundY = canvas.height * 0.85;
             ctx.fillRect(0, groundY, canvas.width, canvas.height * 0.15);
 
-            // Логіка відліку 3, 2, 1
             if (isCountdown) {
                 countdownTimer++;
-                if (countdownTimer >= 60) { // приблизно 1 секунда при 60fps
-                    countdownValue--;
-                    countdownTimer = 0;
-                }
+                if (countdownTimer >= 60) { countdownValue--; countdownTimer = 0; }
+                if (countdownValue <= 0) isCountdown = false;
 
-                if (countdownValue <= 0) {
-                    isCountdown = false;
-                }
-
-                // Малюємо собаку статично
                 ctx.drawImage(imgDog, dog.x, groundY + 20 - dog.h, dog.w, dog.h);
-
-                // Малюємо цифри відліку
                 ctx.fillStyle = "rgba(0,0,0,0.3)";
                 ctx.fillRect(0, 0, canvas.width, canvas.height);
                 ctx.fillStyle = "white";
                 ctx.font = "bold 150px sans-serif";
                 ctx.textAlign = "center";
-                ctx.shadowBlur = 15;
-                ctx.shadowColor = "black";
                 ctx.fillText(countdownValue, canvas.width / 2, canvas.height / 2 + 50);
-                ctx.shadowBlur = 0;
-
                 requestAnimationFrame(update);
                 return;
             }
 
-            // Основна ігрова логіка (починається після відліку)
             let now = Date.now();
             if (now - lastSpeedUpdate > 15000) { gameSpeed += 1.5; lastSpeedUpdate = now; }
 
@@ -160,9 +162,8 @@
             spawnTimer++;
             if (spawnTimer > (100 - gameSpeed * 2)) {
                 const type = Math.random() > 0.5 ? 'cat' : 'house';
-                const isDouble = Math.random() > 0.4;
                 obstacles.push({ x: canvas.width, y: groundY - 80, w: 105, h: 105, type: type });
-                if (isDouble) obstacles.push({ x: canvas.width + 65, y: groundY - 80, w: 105, h: 105, type: type });
+                if (Math.random() > 0.4) obstacles.push({ x: canvas.width + 65, y: groundY - 80, w: 105, h: 105, type: type });
                 if (Math.random() > 0.5) bones.push({ x: canvas.width + 200, y: 300, w: 65, h: 45 });
                 spawnTimer = 0;
             }
@@ -170,9 +171,9 @@
             obstacles.forEach((obs, i) => {
                 obs.x -= gameSpeed;
                 ctx.drawImage(obs.type === 'cat' ? imgCat : imgHouse, obs.x, obs.y, obs.w, obs.h);
-                let dogHit = { x: dog.x + 45, y: dog.y + 40, w: dog.w - 90, h: dog.h - 50 };
-                let obsHit = { x: obs.x + 45, y: obs.y + 40, w: obs.w - 90, h: obs.h - 50 };
-                if (dogHit.x < obsHit.x + obsHit.w && dogHit.x + dogHit.w > obsHit.x && dogHit.y < obsHit.y + obsHit.h && dogHit.y + dogHit.h > obsHit.y) endGame();
+                let dH = { x: dog.x + 45, y: dog.y + 40, w: dog.w - 90, h: dog.h - 50 };
+                let oH = { x: obs.x + 45, y: obs.y + 40, w: obs.w - 90, h: obs.h - 50 };
+                if (dH.x < oH.x + oH.w && dH.x + dH.w > oH.x && dH.y < oH.y + oH.h && dH.y + dH.h > oH.y) endGame();
                 if (obs.x + obs.w < -200) obstacles.splice(i, 1);
             });
 
@@ -189,30 +190,46 @@
             requestAnimationFrame(update);
         }
 
-        function endGame() {
+        async function endGame() {
             isGameOver = true;
-            let leaders = JSON.parse(localStorage.getItem('beagleLeaders')) || [];
-            leaders.push(score);
-            leaders.sort((a, b) => b - a);
+            const user = await getSociogramUser();
+            const playerName = user.name || "Runner";
+
+            // Відправка на сервер Sociogram
+            try {
+                fetch('https://api.sociogram.org/v1/scores/send', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'X-API-KEY': SG_API_KEY },
+                    body: JSON.stringify({ score: score, username: playerName, app_id: 'beagle-run' })
+                });
+            } catch (e) {}
+
+            // Локальний ТОП-20
+            let leaders = JSON.parse(localStorage.getItem('beagleLeadersObj')) || [];
+            const idx = leaders.findIndex(l => l.name === playerName);
+            if (idx !== -1) { if (score > leaders[idx].score) leaders[idx].score = score; }
+            else leaders.push({ name: playerName, score: score });
+            leaders.sort((a, b) => b.score - a.score);
             leaders = leaders.slice(0, 20);
-            localStorage.setItem('beagleLeaders', JSON.stringify(leaders));
+            localStorage.setItem('beagleLeadersObj', JSON.stringify(leaders));
             
             const listElement = document.getElementById('leaderboard-list');
-            listElement.innerHTML = leaders.map((s, i) => 
-                `<div class="score-row"><span>#${i+1}</span> <span>${s} 🦴</span></div>`
-            ).join('');
+            listElement.innerHTML = leaders.map((entry, i) => `
+                <div class="score-row">
+                    <span style="color:${entry.name === playerName ? '#00ff00' : '#ffd700'}; width:25px;">#${i+1}</span>
+                    <span class="player-name">${entry.name}</span>
+                    <span style="font-weight:bold;">${entry.score} 🦴</span>
+                </div>
+            `).join('');
 
-            if (score > highScore) { 
-                highScore = score; 
-                localStorage.setItem('beagleBest', highScore); 
-            }
+            if (score > highScore) { highScore = score; localStorage.setItem('beagleBest', highScore); }
             document.getElementById('final-score').innerText = `Your Score: ${score}`;
             gameOverScreen.style.display = 'flex';
         }
 
         function restart() {
             score = 0; gameSpeed = 7; isGameOver = false; spawnTimer = 0;
-            countdownValue = 3; isCountdown = true; countdownTimer = 0; // Скидання відліку
+            countdownValue = 3; isCountdown = true; countdownTimer = 0;
             lastSpeedUpdate = Date.now(); obstacles = []; bones = []; dog.y = 0;
             gameOverScreen.style.display = 'none';
             scoreElement.innerText = `Bones: 0 | Best: ${highScore}`;
@@ -221,10 +238,7 @@
 
         const handleAction = (e) => {
             if (isGameOver) restart(); 
-            else if (!isCountdown && dog.grounded) { // Прыжок заборонено під час відліку
-                dog.dy = -dog.jump; 
-                dog.grounded = false; 
-            }
+            else if (!isCountdown && dog.grounded) { dog.dy = -dog.jump; dog.grounded = false; }
             if (e.cancelable) e.preventDefault(); 
         };
 
