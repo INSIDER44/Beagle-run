@@ -3,11 +3,10 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Beagle Run - Professional</title>
+    <title>Beagle Run - Action Pack</title>
     <style>
         html, body { margin: 0; padding: 0; width: 100%; height: 100%; background: #1a1a1a; overflow: hidden; display: flex; justify-content: center; align-items: center; font-family: sans-serif; }
         canvas { display: block; background: #87CEEB; touch-action: none; width: 100vw; height: 56.25vw; max-height: 100vh; max-width: 177.78vh; }
-        
         #ui-overlay { position: absolute; width: 100%; height: 100%; display: none; flex-direction: column; align-items: center; justify-content: center; background: rgba(0, 0, 0, 0.85); color: white; z-index: 20; pointer-events: none; }
         #leaderboard { margin: 15px 0; background: rgba(255, 255, 255, 0.1); padding: 15px; border-radius: 12px; width: 280px; border: 1px solid rgba(255, 255, 255, 0.2); pointer-events: auto; }
         .score-row { display: flex; justify-content: space-between; padding: 8px 10px; border-bottom: 1px solid rgba(255, 255, 255, 0.05); font-size: 16px; }
@@ -43,16 +42,8 @@
         const imgCloud = new Image(); imgCloud.src = '1176-removebg-preview.png';
 
         let score = 0, highScore = localStorage.getItem('beagleBest') || 0;
-        let gameSpeed = 7.5, isGameOver = false, isWaiting = true;
-        let spawnTimer = 0, playerName = localStorage.getItem('beagleUserName');
-
-        // Fully English Prompt
-        if (!playerName || playerName === "Player") {
-            playerName = prompt("WELCOME! Please enter your name for the leaderboard:", "BeagleHero") || "Player";
-            if (playerName.length > 12) playerName = playerName.substring(0, 12);
-            localStorage.setItem('beagleUserName', playerName);
-        }
-
+        let gameSpeed = 8, isGameOver = false, isWaiting = true;
+        let spawnTimer = 0, playerName = localStorage.getItem('beagleUserName') || "BeagleOli";
         let dog = { x: 150, y: 0, w: 125, h: 125, dy: 0, jump: 26, grounded: false };
         let obstacles = [], bones = [], clouds = [];
 
@@ -97,31 +88,31 @@
                 ctx.font = "30px sans-serif";
                 ctx.fillText("TAP TO START", canvas.width/2, 400);
             } else if (!isGameOver) {
-                dog.dy += 1.35; dog.y += dog.dy;
+                dog.dy += 1.4; dog.y += dog.dy;
                 if (dog.y + dog.h > groundY + 20) { dog.y = groundY + 20 - dog.h; dog.dy = 0; dog.grounded = true; }
                 ctx.drawImage(imgDog, dog.x, dog.y, dog.w, dog.h);
 
                 spawnTimer++;
-                // Tighter Spacing (90 -> 75)
-                if (spawnTimer > (75 - (score * 0.2))) {
+                // ТУТ КЛЮЧОВІ ЗМІНИ: інтервал зменшено з 75 до 55 (на 25% частіше)
+                let currentInterval = Math.max(45, 55 - Math.floor(score / 5)); 
+                
+                if (spawnTimer > currentInterval) {
                     let type = Math.random() > 0.5 ? 'cat' : 'house';
                     obstacles.push({ x: canvas.width, y: groundY - 85, w: 100, h: 100, type: type });
                     
-                    // Double obstacles with fixed 140px gap for stability
+                    // Шанс на подвійний об'єкт (32%)
                     if (Math.random() < 0.32) {
-                        obstacles.push({ x: canvas.width + 140, y: groundY - 85, w: 100, h: 100, type: type });
-                        spawnTimer = -20; // Extra delay after doubles
-                    } else {
-                        spawnTimer = 0;
+                        obstacles.push({ x: canvas.width + 150, y: groundY - 85, w: 100, h: 100, type: type });
                     }
-
-                    if (Math.random() > 0.5) bones.push({ x: canvas.width + 300, y: 350, w: 60, h: 40 });
+                    
+                    spawnTimer = 0; // Скидаємо таймер відразу, без додаткових пауз
+                    if (Math.random() > 0.4) bones.push({ x: canvas.width + 200, y: 350, w: 60, h: 40 });
                 }
 
                 obstacles.forEach((o, i) => {
-                    o.x -= gameSpeed;
+                    o.x -= gameSpeed + (score * 0.05); // Поступове прискорення
                     ctx.drawImage(o.type === 'cat' ? imgCat : imgHouse, o.x, o.y, o.w, o.h);
-                    if (dog.x + 40 < o.x + 70 && dog.x + 85 > o.x + 15 && dog.y + 35 < o.y + 80 && dog.y + 95 > o.y + 15) {
+                    if (dog.x + 45 < o.x + 65 && dog.x + 80 > o.x + 20 && dog.y + 40 < o.y + 75 && dog.y + 90 > o.y + 20) {
                         isGameOver = true;
                         document.getElementById('final-score').innerText = "Your Score: " + score;
                         updateLeaderboard();
@@ -131,7 +122,7 @@
                 obstacles = obstacles.filter(o => o.x > -150);
 
                 bones.forEach((b, i) => {
-                    b.x -= gameSpeed;
+                    b.x -= gameSpeed + (score * 0.05);
                     ctx.drawImage(imgBone, b.x, b.y, b.w, b.h);
                     if (dog.x < b.x + b.w && dog.x + dog.w > b.x && dog.y < b.y + b.h && dog.y + dog.h > b.y) {
                         score++; bones.splice(i, 1);
@@ -161,14 +152,10 @@
 
         window.addEventListener('touchstart', (e) => { 
             if(!isGameOver && e.target.tagName !== 'BUTTON') { 
-                e.preventDefault(); 
-                handleInput(); 
+                e.preventDefault(); handleInput(); 
             } 
         }, { passive: false });
-        
-        window.addEventListener('mousedown', (e) => { 
-            if(!isGameOver && e.target.tagName !== 'BUTTON') handleInput(); 
-        });
+        window.addEventListener('mousedown', (e) => { if(!isGameOver && e.target.tagName !== 'BUTTON') handleInput(); });
         
         gameLoop();
     </script>
