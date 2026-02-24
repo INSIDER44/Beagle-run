@@ -3,47 +3,35 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Beagle Run - My Profile</title>
+    <title>Beagle Run - Fixed Input</title>
     <style>
         html, body { margin: 0; padding: 0; width: 100%; height: 100%; background: #1a1a1a; overflow: hidden; display: flex; justify-content: center; align-items: center; }
         canvas { display: block; background: #87CEEB; touch-action: none; width: 100vw; height: 56.25vw; max-height: 100vh; max-width: 177.78vh; }
         
-        /* Екрани */
         #ui { position: absolute; top: 15px; width: 100%; text-align: center; color: white; font-family: sans-serif; font-size: 22px; font-weight: bold; text-shadow: 2px 2px 4px #000; pointer-events: none; z-index: 10; }
+        
         #game-over { position: absolute; width: 100%; height: 100%; display: none; flex-direction: column; align-items: center; justify-content: center; background: rgba(0, 0, 0, 0.9); color: white; z-index: 20; font-family: sans-serif; }
         
-        /* Введення імені */
-        #name-setup { position: absolute; width: 100%; height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; background: #1a1a1a; color: white; z-index: 30; font-family: sans-serif; }
-        input { padding: 12px; font-size: 18px; border-radius: 8px; border: none; margin: 15px; width: 200px; text-align: center; }
-        button { padding: 12px 25px; font-size: 18px; background: #ffd700; border: none; border-radius: 8px; font-weight: bold; cursor: pointer; }
-
-        /* Таблиця */
         #leaderboard { margin-top: 10px; background: rgba(255, 255, 255, 0.05); padding: 15px; border-radius: 12px; width: 280px; border: 1px solid rgba(255, 255, 255, 0.1); }
-        #leaderboard-list { max-height: 200px; overflow-y: auto; }
+        #leaderboard-list { max-height: 220px; overflow-y: auto; }
+        
         .score-row { display: flex; justify-content: space-between; padding: 6px 10px; border-bottom: 1px solid rgba(255, 255, 255, 0.05); font-size: 14px; }
         .current-player { background: rgba(255, 215, 0, 0.2) !important; border: 1px solid #ffd700; }
-        .restart-hint { margin-top: 15px; color: #ffd700; font-size: 16px; animation: blink 1.5s infinite; cursor: pointer; font-weight: bold; }
-        @keyframes blink { 50% { opacity: 0.5; } }
+        
+        .btn-restart { margin-top: 20px; padding: 12px 30px; background: #ffd700; color: black; border-radius: 8px; font-weight: bold; cursor: pointer; text-decoration: none; }
     </style>
 </head>
 <body>
-    <div id="name-setup">
-        <h2 style="margin:0;">Welcome to Beagle Run!</h2>
-        <p>Enter your nickname for the leaderboard:</p>
-        <input type="text" id="user-name-input" placeholder="Your Name" maxlength="12">
-        <button onclick="saveName()">START GAME</button>
-    </div>
-
     <div id="ui">Bones: 0 | Best: 0</div>
     
     <div id="game-over">
         <h1 style="color:#ff4d4d; margin:0;">GAME OVER</h1>
-        <p id="final-score" style="font-size:20px;">Score: 0</p>
+        <p id="final-score" style="font-size:20px; margin:10px 0;">Score: 0</p>
         <div id="leaderboard">
             <div style="font-weight:bold; text-align:center; color:#ffd700; margin-bottom:8px;">🏆 GLOBAL TOP 20</div>
             <div id="leaderboard-list"></div>
         </div>
-        <p class="restart-hint" onclick="restart()">Tap to Play Again</p>
+        <div class="btn-restart" onclick="restart()">PLAY AGAIN</div>
     </div>
 
     <canvas id="game"></canvas>
@@ -53,9 +41,6 @@
         const ctx = canvas.getContext('2d');
         const scoreElement = document.getElementById('ui');
         const gameOverScreen = document.getElementById('game-over');
-        const nameSetupScreen = document.getElementById('name-setup');
-
-        const SG_API_KEY = '22de15497bc8c6ed288b63698e87409311c6bf93cb50c0ffefdaa858f028578e';
 
         canvas.width = 1280; canvas.height = 720;
         const imgDog = new Image(); imgDog.src = '1124-removebg-preview.png';
@@ -69,27 +54,24 @@
         let countdownValue = 3, isCountdown = true, countdownTimer = 0;
         let dog = { x: 100, y: 0, w: 125, h: 125, dy: 0, jump: 25, grounded: false };
         let obstacles = [], bones = [], clouds = [];
+        
+        // --- ПЕРЕВІРКА ІМЕНІ ЧЕРЕЗ PROMPT ---
         let playerName = localStorage.getItem('beagleUserName');
 
-        // Перевірка імені при завантаженні
-        if (playerName) {
-            nameSetupScreen.style.display = 'none';
-        }
-
-        function saveName() {
-            const input = document.getElementById('user-name-input').value.trim();
-            if (input.length >= 2) {
-                playerName = input;
+        function checkPlayerName() {
+            if (!playerName) {
+                let name = prompt("Welcome! Please enter your nickname (max 12 chars):", "BeagleRacer");
+                if (name === null || name.trim() === "") {
+                    playerName = "Guest_" + Math.floor(Math.random() * 999);
+                } else {
+                    playerName = name.trim().substring(0, 12);
+                }
                 localStorage.setItem('beagleUserName', playerName);
-                nameSetupScreen.style.display = 'none';
-                update();
-            } else {
-                alert("Name too short!");
             }
         }
 
         function update() {
-            if (isGameOver || nameSetupScreen.style.display === 'flex') return;
+            if (isGameOver) return;
             ctx.clearRect(0, 0, canvas.width, canvas.height);
             const groundY = canvas.height * 0.85;
 
@@ -150,21 +132,16 @@
             document.getElementById('final-score').innerText = `Your Score: ${score}`;
             if (score > highScore) { highScore = score; localStorage.setItem('beagleBest', highScore); }
             
-            // Оновлюємо таблицю лідерів
             let leaders = JSON.parse(localStorage.getItem('beagleGlobalTops')) || [];
-            
-            // Шукаємо, чи є вже такий гравець
             let existing = leaders.find(l => l.username === playerName);
             if (existing) {
                 if (score > existing.score) existing.score = score;
             } else {
                 leaders.push({ username: playerName, score: score });
             }
-            
             leaders.sort((a,b) => b.score - a.score);
             leaders = leaders.slice(0, 20);
             localStorage.setItem('beagleGlobalTops', JSON.stringify(leaders));
-            
             renderLeaders(leaders);
         }
 
@@ -188,13 +165,14 @@
         }
 
         window.addEventListener('touchstart', (e) => { 
-            if (isGameOver) restart(); 
-            else if (!isCountdown && dog.grounded) { dog.dy = -25; dog.grounded = false; }
+            if (!isGameOver && !isCountdown && dog.grounded) { dog.dy = -25; dog.grounded = false; }
             e.preventDefault(); 
         }, { passive: false });
 
         for(let i=0; i<4; i++) clouds.push({ x: Math.random()*canvas.width, y: Math.random()*150, w: 160, h: 100, speed: 1+Math.random() });
-        if (playerName) update();
+        
+        checkPlayerName(); // Викликаємо введення імені
+        update();
     </script>
 </body>
 </html>
