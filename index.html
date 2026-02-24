@@ -3,32 +3,49 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Beagle Run - Global Edition</title>
-    <script src="https://sdk.sociogram.org/v1/sdk.js"></script>
+    <title>Beagle Run - My Profile</title>
     <style>
         html, body { margin: 0; padding: 0; width: 100%; height: 100%; background: #1a1a1a; overflow: hidden; display: flex; justify-content: center; align-items: center; }
-        canvas { display: block; background: #87CEEB; touch-action: none; width: 100vw; height: 56.25vw; max-height: 100vh; max-width: 177.78vh; box-shadow: 0 0 50px rgba(0,0,0,0.8); }
-        #ui { position: absolute; top: 15px; width: 100%; text-align: center; color: white; font-family: sans-serif; font-size: 24px; font-weight: bold; text-shadow: 2px 2px 4px #000; pointer-events: none; z-index: 10; }
+        canvas { display: block; background: #87CEEB; touch-action: none; width: 100vw; height: 56.25vw; max-height: 100vh; max-width: 177.78vh; }
+        
+        /* Екрани */
+        #ui { position: absolute; top: 15px; width: 100%; text-align: center; color: white; font-family: sans-serif; font-size: 22px; font-weight: bold; text-shadow: 2px 2px 4px #000; pointer-events: none; z-index: 10; }
         #game-over { position: absolute; width: 100%; height: 100%; display: none; flex-direction: column; align-items: center; justify-content: center; background: rgba(0, 0, 0, 0.9); color: white; z-index: 20; font-family: sans-serif; }
+        
+        /* Введення імені */
+        #name-setup { position: absolute; width: 100%; height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; background: #1a1a1a; color: white; z-index: 30; font-family: sans-serif; }
+        input { padding: 12px; font-size: 18px; border-radius: 8px; border: none; margin: 15px; width: 200px; text-align: center; }
+        button { padding: 12px 25px; font-size: 18px; background: #ffd700; border: none; border-radius: 8px; font-weight: bold; cursor: pointer; }
+
+        /* Таблиця */
         #leaderboard { margin-top: 10px; background: rgba(255, 255, 255, 0.05); padding: 15px; border-radius: 12px; width: 280px; border: 1px solid rgba(255, 255, 255, 0.1); }
-        #leaderboard-list { max-height: 220px; overflow-y: auto; margin-top: 5px; }
+        #leaderboard-list { max-height: 200px; overflow-y: auto; }
         .score-row { display: flex; justify-content: space-between; padding: 6px 10px; border-bottom: 1px solid rgba(255, 255, 255, 0.05); font-size: 14px; }
-        .player-name { flex-grow: 1; text-align: left; margin-left: 10px; color: #eee; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-        .restart-hint { margin-top: 15px; color: #aaa; font-size: 14px; animation: blink 1.5s infinite; cursor: pointer; }
+        .current-player { background: rgba(255, 215, 0, 0.2) !important; border: 1px solid #ffd700; }
+        .restart-hint { margin-top: 15px; color: #ffd700; font-size: 16px; animation: blink 1.5s infinite; cursor: pointer; font-weight: bold; }
         @keyframes blink { 50% { opacity: 0.5; } }
     </style>
 </head>
 <body>
+    <div id="name-setup">
+        <h2 style="margin:0;">Welcome to Beagle Run!</h2>
+        <p>Enter your nickname for the leaderboard:</p>
+        <input type="text" id="user-name-input" placeholder="Your Name" maxlength="12">
+        <button onclick="saveName()">START GAME</button>
+    </div>
+
     <div id="ui">Bones: 0 | Best: 0</div>
+    
     <div id="game-over">
-        <h1 style="color:#ff4d4d; font-size:32px; margin:0;">GAME OVER</h1>
-        <p id="final-score" style="font-size:22px; margin: 10px 0;">Score: 0</p>
+        <h1 style="color:#ff4d4d; margin:0;">GAME OVER</h1>
+        <p id="final-score" style="font-size:20px;">Score: 0</p>
         <div id="leaderboard">
             <div style="font-weight:bold; text-align:center; color:#ffd700; margin-bottom:8px;">🏆 GLOBAL TOP 20</div>
-            <div id="leaderboard-list">Loading...</div>
+            <div id="leaderboard-list"></div>
         </div>
-        <p class="restart-hint" onclick="restart()">Tap to Run Again</p>
+        <p class="restart-hint" onclick="restart()">Tap to Play Again</p>
     </div>
+
     <canvas id="game"></canvas>
 
     <script>
@@ -36,6 +53,7 @@
         const ctx = canvas.getContext('2d');
         const scoreElement = document.getElementById('ui');
         const gameOverScreen = document.getElementById('game-over');
+        const nameSetupScreen = document.getElementById('name-setup');
 
         const SG_API_KEY = '22de15497bc8c6ed288b63698e87409311c6bf93cb50c0ffefdaa858f028578e';
 
@@ -47,37 +65,31 @@
         const imgCloud = new Image(); imgCloud.src = '1176-removebg-preview.png';
 
         let score = 0, highScore = localStorage.getItem('beagleBest') || 0;
-        let gameSpeed = 7, isGameOver = false, spawnTimer = 0, lastSpeedUpdate = Date.now();
+        let gameSpeed = 7, isGameOver = false, spawnTimer = 0;
         let countdownValue = 3, isCountdown = true, countdownTimer = 0;
         let dog = { x: 100, y: 0, w: 125, h: 125, dy: 0, jump: 25, grounded: false };
         let obstacles = [], bones = [], clouds = [];
+        let playerName = localStorage.getItem('beagleUserName');
 
-        // --- ЛОГІКА ІМЕНІ ---
-        let currentUserName = localStorage.getItem('beagleUserName');
+        // Перевірка імені при завантаженні
+        if (playerName) {
+            nameSetupScreen.style.display = 'none';
+        }
 
-        async function initUser() {
-            if (currentUserName) return currentUserName;
-            
-            // Спробуємо взяти з Sociogram
-            if (window.Sociogram && Sociogram.getUser) {
-                try {
-                    const user = await Sociogram.getUser();
-                    if (user.username || user.name) {
-                        currentUserName = user.username || user.name;
-                        localStorage.setItem('beagleUserName', currentUserName);
-                        return currentUserName;
-                    }
-                } catch (e) { console.log("SDK not ready"); }
+        function saveName() {
+            const input = document.getElementById('user-name-input').value.trim();
+            if (input.length >= 2) {
+                playerName = input;
+                localStorage.setItem('beagleUserName', playerName);
+                nameSetupScreen.style.display = 'none';
+                update();
+            } else {
+                alert("Name too short!");
             }
-
-            // Якщо SDK не відповів, присвоюємо одне ім'я назавжди
-            currentUserName = "Beagle_Racer_" + Math.floor(Math.random() * 999);
-            localStorage.setItem('beagleUserName', currentUserName);
-            return currentUserName;
         }
 
         function update() {
-            if (isGameOver) return;
+            if (isGameOver || nameSetupScreen.style.display === 'flex') return;
             ctx.clearRect(0, 0, canvas.width, canvas.height);
             const groundY = canvas.height * 0.85;
 
@@ -101,7 +113,6 @@
                 requestAnimationFrame(update); return;
             }
 
-            if (Date.now() - lastSpeedUpdate > 15000) { gameSpeed += 1.2; lastSpeedUpdate = Date.now(); }
             dog.dy += 1.0; dog.y += dog.dy;
             if (dog.y + dog.h > groundY + 20) { dog.y = groundY + 20 - dog.h; dog.dy = 0; dog.grounded = true; }
             ctx.drawImage(imgDog, dog.x, dog.y, dog.w, dog.h);
@@ -110,10 +121,7 @@
             if (spawnTimer > (100 - gameSpeed * 2)) {
                 let type = Math.random() > 0.5 ? 'cat' : 'house';
                 obstacles.push({ x: canvas.width, y: groundY - 85, w: 100, h: 100, type: type });
-                // Подвійні перешкоди
-                if (Math.random() > 0.6) {
-                    obstacles.push({ x: canvas.width + 75, y: groundY - 85, w: 100, h: 100, type: type });
-                }
+                if (Math.random() > 0.6) obstacles.push({ x: canvas.width + 75, y: groundY - 85, w: 100, h: 100, type: type });
                 if (Math.random() > 0.5) bones.push({ x: canvas.width + 250, y: 320, w: 60, h: 40 });
                 spawnTimer = 0;
             }
@@ -136,30 +144,36 @@
             requestAnimationFrame(update);
         }
 
-        async function endGame() {
+        function endGame() {
             isGameOver = true;
             gameOverScreen.style.display = 'flex';
-            document.getElementById('final-score').innerText = `Score: ${score}`;
+            document.getElementById('final-score').innerText = `Your Score: ${score}`;
             if (score > highScore) { highScore = score; localStorage.setItem('beagleBest', highScore); }
             
-            const name = await initUser();
+            // Оновлюємо таблицю лідерів
+            let leaders = JSON.parse(localStorage.getItem('beagleGlobalTops')) || [];
             
-            // Локальне збереження для таблиці
-            let leaders = JSON.parse(localStorage.getItem('beagleTops')) || [];
-            leaders.push({ username: name, score: score });
+            // Шукаємо, чи є вже такий гравець
+            let existing = leaders.find(l => l.username === playerName);
+            if (existing) {
+                if (score > existing.score) existing.score = score;
+            } else {
+                leaders.push({ username: playerName, score: score });
+            }
+            
             leaders.sort((a,b) => b.score - a.score);
             leaders = leaders.slice(0, 20);
-            localStorage.setItem('beagleTops', JSON.stringify(leaders));
-
-            renderLeaders(leaders, name);
+            localStorage.setItem('beagleGlobalTops', JSON.stringify(leaders));
+            
+            renderLeaders(leaders);
         }
 
-        function renderLeaders(leaders, current) {
+        function renderLeaders(leaders) {
             const list = document.getElementById('leaderboard-list');
             list.innerHTML = leaders.map((l, i) => `
-                <div class="score-row" style="${l.username === current ? 'background:rgba(255,215,0,0.15); border:1px solid rgba(255,215,0,0.3);' : ''}">
+                <div class="score-row ${l.username === playerName ? 'current-player' : ''}">
                     <span style="color:#ffd700;">#${i+1}</span>
-                    <span class="player-name">${l.username}</span>
+                    <span style="flex-grow:1; text-align:left; margin-left:10px;">${l.username}</span>
                     <span style="font-weight:bold;">${l.score} 🦴</span>
                 </div>
             `).join('');
@@ -174,13 +188,13 @@
         }
 
         window.addEventListener('touchstart', (e) => { 
-            if (isGameOver) restart(); else if (!isCountdown && dog.grounded) { dog.dy = -25; dog.grounded = false; }
+            if (isGameOver) restart(); 
+            else if (!isCountdown && dog.grounded) { dog.dy = -25; dog.grounded = false; }
             e.preventDefault(); 
         }, { passive: false });
 
         for(let i=0; i<4; i++) clouds.push({ x: Math.random()*canvas.width, y: Math.random()*150, w: 160, h: 100, speed: 1+Math.random() });
-        initUser(); // Ініціалізуємо ім'я при завантаженні
-        update();
+        if (playerName) update();
     </script>
 </body>
 </html>
