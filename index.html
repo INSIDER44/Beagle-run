@@ -3,7 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Beagle Run Pro - Sociogram Global</title>
+    <title>Beagle Run - Sociogram Edition</title>
+    <script src="https://sdk.sociogram.org/v1/sdk.js"></script>
     <style>
         html, body { margin: 0; padding: 0; width: 100%; height: 100%; background: #1a1a1a; overflow: hidden; display: flex; justify-content: center; align-items: center; }
         canvas { display: block; background: #87CEEB; touch-action: none; width: 100vw; height: 56.25vw; max-height: 100vh; max-width: 177.78vh; box-shadow: 0 0 50px rgba(0,0,0,0.8); }
@@ -24,7 +25,7 @@
         <p id="final-score" style="font-size:22px; margin: 10px 0;">Your Score: 0</p>
         <div id="leaderboard">
             <div style="font-weight:bold; text-align:center; color:#ffd700; margin-bottom:8px;">🏆 GLOBAL TOP 20</div>
-            <div id="leaderboard-list">Завантаження лідерів...</div>
+            <div id="leaderboard-list">Syncing results...</div>
         </div>
         <p class="restart-hint" onclick="restart()">Tap to Run Again</p>
     </div>
@@ -36,7 +37,7 @@
         const scoreElement = document.getElementById('ui');
         const gameOverScreen = document.getElementById('game-over');
 
-        // ВАШ API KEY
+        // Твій API Key
         const SG_API_KEY = '22de15497bc8c6ed288b63698e87409311c6bf93cb50c0ffefdaa858f028578e';
 
         canvas.width = 1280; canvas.height = 720;
@@ -52,45 +53,17 @@
         let dog = { x: 100, y: 0, w: 125, h: 125, dy: 0, jump: 25, grounded: false };
         let obstacles = [], bones = [], clouds = [];
 
-        for(let i=0; i<4; i++) clouds.push({ x: Math.random()*canvas.width, y: Math.random()*180, w: 160, h: 100, speed: 1+Math.random() });
+        // Ініціалізація Sociogram SDK
+        if (window.Sociogram) { Sociogram.init({ apiKey: SG_API_KEY }); }
 
-        // Отримання імені з Sociogram
-        async function getPlayerProfile() {
-            if (window.SociogramSDK) {
-                return window.SociogramSDK.getUser(); 
+        async function getPlayerName() {
+            if (window.Sociogram && Sociogram.getUser) {
+                try {
+                    const user = await Sociogram.getUser();
+                    return user.username || user.name || "Beagle Fan";
+                } catch (e) { return "Player_" + Math.floor(Math.random()*99); }
             }
-            return { name: "Player_" + Math.floor(Math.random()*1000) };
-        }
-
-        async function syncWithServer(playerName, finalScore) {
-            try {
-                // 1. Відправка результату
-                await fetch('https://api.sociogram.org/v1/scores/send', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json', 'X-API-KEY': SG_API_KEY },
-                    body: JSON.stringify({ score: finalScore, username: playerName })
-                });
-
-                // 2. Отримання ТОП-20
-                const res = await fetch('https://api.sociogram.org/v1/scores/get?limit=20', {
-                    headers: { 'X-API-KEY': SG_API_KEY }
-                });
-                const data = await res.json();
-                renderLeaderboard(data.leaders, playerName);
-            } catch (e) {
-                document.getElementById('leaderboard-list').innerHTML = "Помилка зв'язку з сервером";
-            }
-        }
-
-        function renderLeaderboard(leaders, currentPlayer) {
-            const list = document.getElementById('leaderboard-list');
-            list.innerHTML = leaders.map((entry, i) => `
-                <div class="score-row">
-                    <span style="color:${entry.username === currentPlayer ? '#00ff00' : '#ffd700'};">#${i+1}</span>
-                    <span class="player-name">${entry.username}</span>
-                    <span>${entry.score} 🦴</span>
-                </div>
-            `).join('');
+            return "Player_" + Math.floor(Math.random()*99);
         }
 
         function update() {
@@ -101,7 +74,7 @@
             clouds.forEach(c => {
                 if (!isCountdown) c.x -= c.speed;
                 ctx.drawImage(imgCloud, c.x, c.y, c.w, c.h);
-                if (c.x + c.w < 0) c.x = canvas.width + 50;
+                if (c.x + c.w < 0) c.x = canvas.width + 100;
             });
 
             ctx.fillStyle = '#458B00';
@@ -112,7 +85,7 @@
                 if (countdownTimer >= 60) { countdownValue--; countdownTimer = 0; }
                 if (countdownValue <= 0) isCountdown = false;
                 ctx.drawImage(imgDog, dog.x, groundY + 20 - dog.h, dog.w, dog.h);
-                ctx.fillStyle = "rgba(0,0,0,0.3)"; ctx.fillRect(0,0,canvas.width,canvas.height);
+                ctx.fillStyle = "rgba(0,0,0,0.4)"; ctx.fillRect(0,0,canvas.width,canvas.height);
                 ctx.fillStyle = "white"; ctx.font = "bold 150px sans-serif"; ctx.textAlign = "center";
                 ctx.fillText(countdownValue, canvas.width/2, canvas.height/2+50);
                 requestAnimationFrame(update); return;
@@ -123,18 +96,23 @@
             if (dog.y + dog.h > groundY + 20) { dog.y = groundY + 20 - dog.h; dog.dy = 0; dog.grounded = true; }
             ctx.drawImage(imgDog, dog.x, dog.y, dog.w, dog.h);
 
+            // СПАВН ОБ'ЄКТІВ (Повертаємо подвійні перешкоди)
             spawnTimer++;
             if (spawnTimer > (100 - gameSpeed * 2)) {
-                obstacles.push({ x: canvas.width, y: groundY - 80, w: 105, h: 105, type: Math.random() > 0.5 ? 'cat' : 'house' });
-                if (Math.random() > 0.6) bones.push({ x: canvas.width + 200, y: 300, w: 65, h: 45 });
+                let type = Math.random() > 0.5 ? 'cat' : 'house';
+                obstacles.push({ x: canvas.width, y: groundY - 85, w: 100, h: 100, type: type });
+                if (Math.random() > 0.6) { // Ймовірність подвійної перешкоди
+                    obstacles.push({ x: canvas.width + 75, y: groundY - 85, w: 100, h: 100, type: type });
+                }
+                if (Math.random() > 0.5) { bones.push({ x: canvas.width + 250, y: 320, w: 60, h: 40 }); }
                 spawnTimer = 0;
             }
 
-            obstacles.forEach((obs, i) => {
-                obs.x -= gameSpeed;
-                ctx.drawImage(obs.type === 'cat' ? imgCat : imgHouse, obs.x, obs.y, obs.w, obs.h);
-                if (dog.x + 45 < obs.x + 60 && dog.x + 80 > obs.x + 45 && dog.y + 40 < obs.y + 65 && dog.y + 75 > obs.y + 40) endGame();
-                if (obs.x < -200) obstacles.splice(i, 1);
+            obstacles.forEach((o, i) => {
+                o.x -= gameSpeed;
+                ctx.drawImage(o.type === 'cat' ? imgCat : imgHouse, o.x, o.y, o.w, o.h);
+                if (dog.x + 45 < o.x + 75 && dog.x + 85 > o.x + 25 && dog.y + 40 < o.y + 80 && dog.y + 85 > o.y + 20) endGame();
+                if (o.x < -150) obstacles.splice(i, 1);
             });
 
             bones.forEach((b, i) => {
@@ -148,29 +126,65 @@
             requestAnimationFrame(update);
         }
 
+        async function syncGlobalScore(pName, pScore) {
+            const list = document.getElementById('leaderboard-list');
+            try {
+                const response = await fetch('https://api.sociogram.org/v1/scores/send', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'X-API-KEY': SG_API_KEY },
+                    body: JSON.stringify({ score: pScore, username: pName, app_id: 'beagle-run' })
+                });
+                const data = await response.json();
+                renderLeaders(data.top_scores || [], pName);
+            } catch (e) {
+                // Замість напису "Помилка" показуємо локальний топ
+                showLocalLeaders(pName, pScore);
+            }
+        }
+
+        function showLocalLeaders(name, score) {
+            let local = JSON.parse(localStorage.getItem('beagleTops')) || [];
+            local.push({ username: name, score: score });
+            local.sort((a,b) => b.score - a.score);
+            local = local.slice(0, 20);
+            localStorage.setItem('beagleTops', JSON.stringify(local));
+            renderLeaders(local, name);
+        }
+
+        function renderLeaders(leaders, current) {
+            const list = document.getElementById('leaderboard-list');
+            list.innerHTML = leaders.map((l, i) => `
+                <div class="score-row" style="${l.username === current ? 'background:rgba(255,215,0,0.1)' : ''}">
+                    <span style="color:#ffd700;">#${i+1}</span>
+                    <span class="player-name">${l.username}</span>
+                    <span style="font-weight:bold;">${l.score} 🦴</span>
+                </div>
+            `).join('');
+        }
+
         async function endGame() {
             isGameOver = true;
-            const profile = await getPlayerProfile();
             gameOverScreen.style.display = 'flex';
-            document.getElementById('final-score').innerText = `Your Score: ${score}`;
+            document.getElementById('final-score').innerText = `Score: ${score}`;
             if (score > highScore) { highScore = score; localStorage.setItem('beagleBest', highScore); }
-            
-            // Запуск синхронізації з сервером
-            syncWithServer(profile.name, score);
+            const name = await getPlayerName();
+            syncGlobalScore(name, score);
         }
 
         function restart() {
-            score = 0; gameSpeed = 7; isGameOver = false; isCountdown = true; countdownValue = 3;
+            score = 0; isGameOver = false; isCountdown = true; countdownValue = 3;
             obstacles = []; bones = []; dog.y = 0;
             gameOverScreen.style.display = 'none';
+            scoreElement.innerText = `Bones: 0 | Best: ${highScore}`;
             update();
         }
 
         window.addEventListener('touchstart', (e) => { 
-            if (isGameOver) restart(); else if (!isCountdown && dog.grounded) { dog.dy = -dog.jump; dog.grounded = false; }
+            if (isGameOver) restart(); else if (!isCountdown && dog.grounded) { dog.dy = -25; dog.grounded = false; }
             e.preventDefault(); 
         }, { passive: false });
 
+        for(let i=0; i<4; i++) clouds.push({ x: Math.random()*canvas.width, y: Math.random()*150, w: 160, h: 100, speed: 1+Math.random() });
         update();
     </script>
 </body>
