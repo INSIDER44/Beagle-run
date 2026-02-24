@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Beagle Run - Bonus Jump</title>
+    <title>Beagle Run - Grounded</title>
     <style>
         html, body { margin: 0; padding: 0; width: 100%; height: 100%; background: #1a1a1a; overflow: hidden; display: flex; justify-content: center; align-items: center; font-family: sans-serif; }
         canvas { display: block; background: #87CEEB; touch-action: none; width: 100vw; height: 56.25vw; max-height: 100vh; max-width: 177.78vh; }
@@ -33,6 +33,7 @@
         const list = document.getElementById('leaderboard-list');
 
         canvas.width = 1280; canvas.height = 720;
+        const groundLevel = canvas.height * 0.85; // Чітка лінія горизонту
         
         const imgDog = new Image(); imgDog.src = '1124-removebg-preview.png';
         const imgCat = new Image(); imgCat.src = '1126-removebg-preview.png';
@@ -44,7 +45,8 @@
         let gameSpeed = 8.8, isGameOver = false, isWaiting = true;
         let spawnTimer = 0, playerName = localStorage.getItem('beagleUserName') || "BeagleOli";
         
-        let dog = { x: 150, y: 0, w: 155, h: 155, dy: 0, jump: 28, grounded: false };
+        // Масштабований бігль
+        let dog = { x: 150, y: groundLevel - 150, w: 155, h: 155, dy: 0, jump: 28, grounded: false };
         let obstacles = [], bones = [], clouds = [];
 
         for(let i=0; i<5; i++) clouds.push({ x: Math.random()*canvas.width, y: Math.random()*150, w: 180, h: 110, speed: 0.5 + Math.random() });
@@ -69,15 +71,17 @@
 
         function gameLoop() {
             ctx.clearRect(0, 0, canvas.width, canvas.height);
-            const groundY = canvas.height * 0.82;
 
+            // Малюємо небо та хмари
             clouds.forEach(c => {
                 c.x -= c.speed;
                 ctx.drawImage(imgCloud, c.x, c.y, c.w, c.h);
                 if (c.x + c.w < 0) c.x = canvas.width;
             });
+
+            // Малюємо землю
             ctx.fillStyle = '#458B00';
-            ctx.fillRect(0, groundY, canvas.width, canvas.height * 0.18);
+            ctx.fillRect(0, groundLevel, canvas.width, canvas.height - groundLevel);
 
             if (isWaiting) {
                 ctx.fillStyle = "rgba(0,0,0,0.7)";
@@ -85,48 +89,48 @@
                 ctx.fillStyle = "white"; ctx.textAlign = "center";
                 ctx.font = "bold 50px sans-serif";
                 ctx.fillText(`READY, ${playerName.toUpperCase()}?`, canvas.width/2, 340);
-                ctx.font = "30px sans-serif";
-                ctx.fillText("TAP TO START", canvas.width/2, 400);
             } else if (!isGameOver) {
+                // Фізика собаки
                 dog.dy += 1.5; dog.y += dog.dy;
-                if (dog.y + dog.h > groundY + 25) { dog.y = groundY + 25 - dog.h; dog.dy = 0; dog.grounded = true; }
+                // Приземлення чітко на траву
+                if (dog.y + dog.h > groundLevel + 10) { 
+                    dog.y = groundLevel + 10 - dog.h; 
+                    dog.dy = 0; 
+                    dog.grounded = true; 
+                }
                 ctx.drawImage(imgDog, dog.x, dog.y, dog.w, dog.h);
 
                 spawnTimer++;
-                let groupGap = 85; 
-                
-                if (spawnTimer > groupGap) {
+                if (spawnTimer > 85) {
                     let type = Math.random() > 0.5 ? 'cat' : 'house';
                     let objW = 125, objH = 125;
                     let objX = canvas.width;
-                    obstacles.push({ x: objX, y: groundY - (objH - 15), w: objW, h: objH, type: type });
+                    // Об'єкти тепер чітко на траві (groundLevel - objH)
+                    obstacles.push({ x: objX, y: groundLevel - objH + 15, w: objW, h: objH, type: type });
                     
-                    // Шанс 70% спавнити кістку саме над перешкодою
-                    if (Math.random() < 0.7) {
-                        bones.push({ x: objX + 25, y: groundY - 260, w: 75, h: 50 });
+                    // Кістка на зручній висоті над об'єктом
+                    if (Math.random() < 0.75) {
+                        bones.push({ x: objX + 25, y: groundLevel - 280, w: 75, h: 50 });
                     }
 
-                    if (Math.random() < 0.32) {
-                        let secondX = objX + 105;
-                        obstacles.push({ x: secondX, y: groundY - (objH - 15), w: objW, h: objH, type: type });
-                        // Для подвійних об'єктів кістка трохи зміщена для краси
-                        if (Math.random() < 0.5) bones.push({ x: secondX + 25, y: groundY - 260, w: 75, h: 50 });
+                    if (Math.random() < 0.3) {
+                        obstacles.push({ x: objX + 110, y: groundLevel - objH + 15, w: objW, h: objH, type: type });
                     }
-                    
                     spawnTimer = 0;
                 }
 
-                obstacles.forEach((o, i) => {
+                obstacles.forEach((o) => {
                     o.x -= gameSpeed;
                     ctx.drawImage(o.type === 'cat' ? imgCat : imgHouse, o.x, o.y, o.w, o.h);
-                    if (dog.x + 65 < o.x + 100 && dog.x + 110 > o.x + 25 && dog.y + 60 < o.y + 90 && dog.y + 115 > o.y + 25) {
+                    // Колізія
+                    if (dog.x + 60 < o.x + 95 && dog.x + 115 > o.x + 30 && dog.y + 60 < o.y + 90 && dog.y + 120 > o.y + 30) {
                         isGameOver = true;
                         document.getElementById('final-score').innerText = "Your Score: " + score;
                         updateLeaderboard();
                         overlay.style.display = 'flex';
                     }
                 });
-                obstacles = obstacles.filter(o => o.x > -250);
+                obstacles = obstacles.filter(o => o.x > -200);
 
                 bones.forEach((b, i) => {
                     b.x -= gameSpeed;
@@ -135,7 +139,6 @@
                         score++; bones.splice(i, 1);
                     }
                 });
-                bones = bones.filter(b => b.x > -150);
 
                 ctx.fillStyle = "white"; ctx.font = "bold 35px sans-serif"; ctx.textAlign = "left";
                 ctx.fillText(`Bones: ${score}`, 40, 60);
@@ -145,20 +148,19 @@
         }
 
         function restartGame() {
-            score = 0; obstacles = []; bones = []; dog.y = 0; 
+            score = 0; obstacles = []; bones = []; dog.y = groundLevel - 150; 
             isGameOver = false; isWaiting = false;
             overlay.style.display = 'none';
         }
 
-        function handleInput(e) {
-            if (isWaiting) { isWaiting = false; }
+        function handleInput() {
+            if (isWaiting) isWaiting = false;
             else if (!isGameOver && dog.grounded) {
                 dog.dy = -dog.jump; dog.grounded = false;
             }
         }
-
-        window.addEventListener('touchstart', (e) => { if(!isGameOver && e.target.tagName !== 'BUTTON') { e.preventDefault(); handleInput(); } }, { passive: false });
-        window.addEventListener('mousedown', (e) => { if(!isGameOver && e.target.tagName !== 'BUTTON') handleInput(); });
+        window.addEventListener('touchstart', (e) => { if(e.target.tagName !== 'BUTTON') { e.preventDefault(); handleInput(); } }, { passive: false });
+        window.addEventListener('mousedown', (e) => { if(e.target.tagName !== 'BUTTON') handleInput(); });
         gameLoop();
     </script>
 </body>
