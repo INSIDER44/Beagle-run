@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Beagle Run - Optimized</title>
+    <title>Beagle Run - Professional</title>
     <style>
         html, body { margin: 0; padding: 0; width: 100%; height: 100%; background: #1a1a1a; overflow: hidden; display: flex; justify-content: center; align-items: center; font-family: sans-serif; }
         canvas { display: block; background: #87CEEB; touch-action: none; width: 100vw; height: 56.25vw; max-height: 100vh; max-width: 177.78vh; }
@@ -43,12 +43,12 @@
         const imgCloud = new Image(); imgCloud.src = '1176-removebg-preview.png';
 
         let score = 0, highScore = localStorage.getItem('beagleBest') || 0;
-        let gameSpeed = 7, isGameOver = false, isWaiting = true;
+        let gameSpeed = 7.5, isGameOver = false, isWaiting = true;
         let spawnTimer = 0, playerName = localStorage.getItem('beagleUserName');
 
-        // Запит імені, якщо його немає
+        // Fully English Prompt
         if (!playerName || playerName === "Player") {
-            playerName = prompt("Enter your nickname for the leaderboard:", "BeagleHero") || "Player";
+            playerName = prompt("WELCOME! Please enter your name for the leaderboard:", "BeagleHero") || "Player";
             if (playerName.length > 12) playerName = playerName.substring(0, 12);
             localStorage.setItem('beagleUserName', playerName);
         }
@@ -97,23 +97,25 @@
                 ctx.font = "30px sans-serif";
                 ctx.fillText("TAP TO START", canvas.width/2, 400);
             } else if (!isGameOver) {
-                dog.dy += 1.3; dog.y += dog.dy;
+                dog.dy += 1.35; dog.y += dog.dy;
                 if (dog.y + dog.h > groundY + 20) { dog.y = groundY + 20 - dog.h; dog.dy = 0; dog.grounded = true; }
                 ctx.drawImage(imgDog, dog.x, dog.y, dog.w, dog.h);
 
                 spawnTimer++;
-                // Логіка спавну з шансом на подвійні об'єкти (шанс зменшено на 20%)
-                if (spawnTimer > (90 - gameSpeed)) {
+                // Tighter Spacing (90 -> 75)
+                if (spawnTimer > (75 - (score * 0.2))) {
                     let type = Math.random() > 0.5 ? 'cat' : 'house';
                     obstacles.push({ x: canvas.width, y: groundY - 85, w: 100, h: 100, type: type });
                     
-                    // Шанс на подвійний об'єкт (був 40%, став 32% - тобто на 20% менше від базового)
+                    // Double obstacles with fixed 140px gap for stability
                     if (Math.random() < 0.32) {
-                        obstacles.push({ x: canvas.width + 120, y: groundY - 85, w: 100, h: 100, type: type });
+                        obstacles.push({ x: canvas.width + 140, y: groundY - 85, w: 100, h: 100, type: type });
+                        spawnTimer = -20; // Extra delay after doubles
+                    } else {
+                        spawnTimer = 0;
                     }
 
-                    if (Math.random() > 0.6) bones.push({ x: canvas.width + 250, y: 350, w: 60, h: 40 });
-                    spawnTimer = 0;
+                    if (Math.random() > 0.5) bones.push({ x: canvas.width + 300, y: 350, w: 60, h: 40 });
                 }
 
                 obstacles.forEach((o, i) => {
@@ -158,11 +160,9 @@
         }
 
         window.addEventListener('touchstart', (e) => { 
-            if(!isGameOver) { 
-                if (e.target.tagName !== 'BUTTON') {
-                    e.preventDefault(); 
-                    handleInput(); 
-                }
+            if(!isGameOver && e.target.tagName !== 'BUTTON') { 
+                e.preventDefault(); 
+                handleInput(); 
             } 
         }, { passive: false });
         
