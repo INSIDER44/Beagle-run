@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Beagle Run - Ultimate</title>
+    <title>Beagle Run - Optimized</title>
     <style>
         html, body { margin: 0; padding: 0; width: 100%; height: 100%; background: #1a1a1a; overflow: hidden; display: flex; justify-content: center; align-items: center; font-family: sans-serif; }
         canvas { display: block; background: #87CEEB; touch-action: none; width: 100vw; height: 56.25vw; max-height: 100vh; max-width: 177.78vh; }
@@ -12,20 +12,18 @@
         #leaderboard { margin: 15px 0; background: rgba(255, 255, 255, 0.1); padding: 15px; border-radius: 12px; width: 280px; border: 1px solid rgba(255, 255, 255, 0.2); pointer-events: auto; }
         .score-row { display: flex; justify-content: space-between; padding: 8px 10px; border-bottom: 1px solid rgba(255, 255, 255, 0.05); font-size: 16px; }
         .current-player { background: rgba(255, 215, 0, 0.3) !important; border: 1px solid #ffd700; border-radius: 5px; }
-        .btn-play { margin-top: 15px; padding: 15px 40px; background: #ffd700; color: black; border-radius: 10px; font-weight: bold; font-size: 20px; pointer-events: auto; cursor: pointer; }
+        .btn-play { margin-top: 15px; padding: 15px 40px; background: #ffd700; color: black; border-radius: 10px; font-weight: bold; font-size: 20px; pointer-events: auto; cursor: pointer; border: none; }
     </style>
 </head>
 <body>
     <div id="ui-overlay">
         <h1 style="color:#ff4d4d; margin:0; font-size: 40px;">GAME OVER</h1>
         <p id="final-score" style="font-size:24px; margin:10px 0;">Score: 0</p>
-        
         <div id="leaderboard">
             <div style="font-weight:bold; text-align:center; color:#ffd700; margin-bottom:10px; font-size: 18px;">🏆 GLOBAL TOP 20</div>
             <div id="leaderboard-list"></div>
         </div>
-        
-        <div class="btn-play" onclick="restartGame()">PLAY AGAIN</div>
+        <button class="btn-play" onclick="restartGame()">PLAY AGAIN</button>
     </div>
 
     <canvas id="game"></canvas>
@@ -46,7 +44,15 @@
 
         let score = 0, highScore = localStorage.getItem('beagleBest') || 0;
         let gameSpeed = 7, isGameOver = false, isWaiting = true;
-        let spawnTimer = 0, playerName = localStorage.getItem('beagleUserName') || "Player";
+        let spawnTimer = 0, playerName = localStorage.getItem('beagleUserName');
+
+        // Запит імені, якщо його немає
+        if (!playerName || playerName === "Player") {
+            playerName = prompt("Enter your nickname for the leaderboard:", "BeagleHero") || "Player";
+            if (playerName.length > 12) playerName = playerName.substring(0, 12);
+            localStorage.setItem('beagleUserName', playerName);
+        }
+
         let dog = { x: 150, y: 0, w: 125, h: 125, dy: 0, jump: 26, grounded: false };
         let obstacles = [], bones = [], clouds = [];
 
@@ -96,9 +102,17 @@
                 ctx.drawImage(imgDog, dog.x, dog.y, dog.w, dog.h);
 
                 spawnTimer++;
+                // Логіка спавну з шансом на подвійні об'єкти (шанс зменшено на 20%)
                 if (spawnTimer > (90 - gameSpeed)) {
-                    obstacles.push({ x: canvas.width, y: groundY - 85, w: 100, h: 100, type: Math.random() > 0.5 ? 'cat' : 'house' });
-                    if (Math.random() > 0.6) bones.push({ x: canvas.width + 200, y: 350, w: 60, h: 40 });
+                    let type = Math.random() > 0.5 ? 'cat' : 'house';
+                    obstacles.push({ x: canvas.width, y: groundY - 85, w: 100, h: 100, type: type });
+                    
+                    // Шанс на подвійний об'єкт (був 40%, став 32% - тобто на 20% менше від базового)
+                    if (Math.random() < 0.32) {
+                        obstacles.push({ x: canvas.width + 120, y: groundY - 85, w: 100, h: 100, type: type });
+                    }
+
+                    if (Math.random() > 0.6) bones.push({ x: canvas.width + 250, y: 350, w: 60, h: 40 });
                     spawnTimer = 0;
                 }
 
@@ -111,8 +125,8 @@
                         updateLeaderboard();
                         overlay.style.display = 'flex';
                     }
-                    if (o.x < -100) obstacles.splice(i, 1);
                 });
+                obstacles = obstacles.filter(o => o.x > -150);
 
                 bones.forEach((b, i) => {
                     b.x -= gameSpeed;
@@ -121,6 +135,7 @@
                         score++; bones.splice(i, 1);
                     }
                 });
+                bones = bones.filter(b => b.x > -100);
 
                 ctx.fillStyle = "white"; ctx.font = "bold 35px sans-serif"; ctx.textAlign = "left";
                 ctx.fillText(`Bones: ${score}`, 40, 60);
@@ -142,8 +157,18 @@
             }
         }
 
-        window.addEventListener('touchstart', (e) => { if(!isGameOver) { e.preventDefault(); handleInput(); } }, { passive: false });
-        window.addEventListener('mousedown', (e) => { if(!isGameOver) handleInput(); });
+        window.addEventListener('touchstart', (e) => { 
+            if(!isGameOver) { 
+                if (e.target.tagName !== 'BUTTON') {
+                    e.preventDefault(); 
+                    handleInput(); 
+                }
+            } 
+        }, { passive: false });
+        
+        window.addEventListener('mousedown', (e) => { 
+            if(!isGameOver && e.target.tagName !== 'BUTTON') handleInput(); 
+        });
         
         gameLoop();
     </script>
