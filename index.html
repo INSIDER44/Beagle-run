@@ -3,47 +3,24 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Beagle Run - Total Fix</title>
+    <title>Beagle Run - Stable Fix</title>
     <style>
         html, body { margin: 0; padding: 0; width: 100%; height: 100%; background: #1a1a1a; overflow: hidden; display: flex; justify-content: center; align-items: center; }
-        canvas { display: block; background: #87CEEB; touch-action: none; width: 100vw; height: 56.25vw; max-height: 100vh; max-width: 177.78vh; }
-        
-        /* Приховане поле для виклику клавіатури */
-        #hidden-input { position: absolute; opacity: 0; pointer-events: none; left: -9999px; }
-
-        #ui { position: absolute; top: 15px; width: 100%; text-align: center; color: white; font-family: sans-serif; font-size: 22px; font-weight: bold; text-shadow: 2px 2px 4px #000; pointer-events: none; z-index: 10; }
-        #game-over { position: absolute; width: 100%; height: 100%; display: none; flex-direction: column; align-items: center; justify-content: center; background: rgba(0, 0, 0, 0.9); color: white; z-index: 20; font-family: sans-serif; }
-        #leaderboard { margin-top: 10px; background: rgba(255, 255, 255, 0.05); padding: 15px; border-radius: 12px; width: 280px; border: 1px solid rgba(255, 255, 255, 0.1); }
-        #leaderboard-list { max-height: 200px; overflow-y: auto; }
-        .score-row { display: flex; justify-content: space-between; padding: 6px 10px; border-bottom: 1px solid rgba(255, 255, 255, 0.05); font-size: 14px; }
-        .current-player { background: rgba(255, 215, 0, 0.2) !important; border: 1px solid #ffd700; }
-        .btn-restart { margin-top: 20px; padding: 12px 30px; background: #ffd700; color: black; border-radius: 8px; font-weight: bold; cursor: pointer; }
+        canvas { display: block; background: #87CEEB; touch-action: none; width: 100vw; height: 56.25vw; max-height: 100vh; max-width: 177.78vh; border: 2px solid #333; }
+        #hidden-input { position: absolute; top: -100px; left: -100px; width: 1px; height: 1px; opacity: 0; }
     </style>
 </head>
 <body>
     <input type="text" id="hidden-input" maxlength="12">
-
-    <div id="ui">Bones: 0 | Best: 0</div>
-    
-    <div id="game-over">
-        <h1 style="color:#ff4d4d; margin:0;">GAME OVER</h1>
-        <p id="final-score" style="font-size:20px; margin:5px 0;">Score: 0</p>
-        <div id="leaderboard">
-            <div style="font-weight:bold; text-align:center; color:#ffd700; margin-bottom:8px;">🏆 TOP 20</div>
-            <div id="leaderboard-list"></div>
-        </div>
-        <div class="btn-restart" onclick="restart()">PLAY AGAIN</div>
-    </div>
-
     <canvas id="game"></canvas>
 
     <script>
         const canvas = document.getElementById('game');
         const ctx = canvas.getContext('2d');
         const hiddenInput = document.getElementById('hidden-input');
-        const gameOverScreen = document.getElementById('game-over');
 
         canvas.width = 1280; canvas.height = 720;
+        
         const imgDog = new Image(); imgDog.src = '1124-removebg-preview.png';
         const imgCat = new Image(); imgCat.src = '1126-removebg-preview.png';
         const imgBone = new Image(); imgBone.src = '1127-removebg-preview.png';
@@ -51,60 +28,128 @@
         const imgCloud = new Image(); imgCloud.src = '1176-removebg-preview.png';
 
         let score = 0, highScore = localStorage.getItem('beagleBest') || 0;
-        let gameSpeed = 7, isGameOver = false, spawnTimer = 0;
-        let isNaming = !localStorage.getItem('beagleUserName');
-        let tempName = "";
-        let countdownValue = 3, isCountdown = true, countdownTimer = 0;
+        let gameSpeed = 7, isGameOver = false, isNaming = !localStorage.getItem('beagleUserName');
+        let tempName = "", spawnTimer = 0;
         let dog = { x: 100, y: 0, w: 125, h: 125, dy: 0, jump: 25, grounded: false };
         let obstacles = [], bones = [], clouds = [];
 
-        function drawNamingScreen() {
-            ctx.fillStyle = "#1a1a1a";
-            ctx.fillRect(0, 0, canvas.width, canvas.height);
-            
-            ctx.fillStyle = "white";
-            ctx.font = "bold 40px sans-serif";
-            ctx.textAlign = "center";
-            ctx.fillText("WELCOME TO BEAGLE RUN", canvas.width/2, 200);
-            
-            ctx.font = "24px sans-serif";
-            ctx.fillText("TAP TO ENTER YOUR NICKNAME:", canvas.width/2, 280);
-            
-            // Поле вводу на Canvas
-            ctx.fillStyle = "white";
-            ctx.fillRect(canvas.width/2 - 200, 320, 400, 60);
-            
-            ctx.fillStyle = "black";
-            ctx.font = "bold 30px sans-serif";
-            ctx.fillText(tempName + (Date.now() % 1000 < 500 ? "|" : ""), canvas.width/2, 360);
-            
-            ctx.fillStyle = "#ffd700";
-            ctx.fillRect(canvas.width/2 - 100, 420, 200, 50);
-            ctx.fillStyle = "black";
-            ctx.font = "bold 24px sans-serif";
-            ctx.fillText("START GAME", canvas.width/2, 453);
+        // Ініціалізація хмар
+        for(let i=0; i<5; i++) clouds.push({ x: Math.random()*canvas.width, y: Math.random()*200, w: 160, h: 100, speed: 0.5 + Math.random() });
 
-            if (isNaming) requestAnimationFrame(drawNamingScreen);
+        function drawButton(text, x, y, w, h, color) {
+            ctx.fillStyle = color;
+            ctx.roundRect ? ctx.beginPath() || ctx.roundRect(x, y, w, h, 10) || ctx.fill() : ctx.fillRect(x, y, w, h);
+            ctx.fillStyle = "black";
+            ctx.font = "bold 28px sans-serif";
+            ctx.textAlign = "center";
+            ctx.fillText(text, x + w/2, y + h/2 + 10);
         }
 
-        // Обробка введення
-        canvas.addEventListener('touchstart', (e) => {
-            if (isNaming) {
-                hiddenInput.focus(); // Викликаємо клавіатуру
-                const rect = canvas.getBoundingClientRect();
-                const touchX = (e.touches[0].clientX - rect.left) * (canvas.width / rect.width);
-                const touchY = (e.touches[0].clientY - rect.top) * (canvas.height / rect.height);
+        function gameLoop() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            const groundY = canvas.height * 0.85;
 
-                // Якщо натиснули кнопку START
-                if (touchX > canvas.width/2 - 100 && touchX < canvas.width/2 + 100 && touchY > 420 && touchY < 470) {
-                    if (tempName.length >= 2) {
+            // Хмари та фон
+            clouds.forEach(c => {
+                c.x -= c.speed;
+                ctx.drawImage(imgCloud, c.x, c.y, c.w, c.h);
+                if (c.x + c.w < 0) c.x = canvas.width;
+            });
+
+            ctx.fillStyle = '#458B00';
+            ctx.fillRect(0, groundY, canvas.width, canvas.height * 0.15);
+
+            if (isNaming) {
+                ctx.fillStyle = "rgba(0,0,0,0.8)";
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+                ctx.fillStyle = "white";
+                ctx.font = "bold 40px sans-serif";
+                ctx.fillText("ВВЕДІТЬ СВІЙ НІКНЕЙМ:", canvas.width/2, 250);
+                
+                // Поле вводу
+                ctx.fillStyle = "white";
+                ctx.fillRect(canvas.width/2 - 200, 300, 400, 60);
+                ctx.fillStyle = "black";
+                ctx.fillText(tempName + (Date.now() % 1000 < 500 ? "|" : ""), canvas.width/2, 345);
+                
+                drawButton("ГРАТИ", canvas.width/2 - 100, 400, 200, 60, "#ffd700");
+            } 
+            else if (isGameOver) {
+                ctx.fillStyle = "rgba(0,0,0,0.85)";
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+                ctx.fillStyle = "#ff4d4d";
+                ctx.font = "bold 80px sans-serif";
+                ctx.fillText("GAME OVER", canvas.width/2, 200);
+                ctx.fillStyle = "white";
+                ctx.font = "30px sans-serif";
+                ctx.fillText(`Твій результат: ${score}`, canvas.width/2, 280);
+                
+                drawButton("СПРОБУВАТИ ЗНОВУ", canvas.width/2 - 150, 400, 300, 70, "#ffd700");
+            } 
+            else {
+                // Логіка гри
+                dog.dy += 1.2; dog.y += dog.dy;
+                if (dog.y + dog.h > groundY + 20) { dog.y = groundY + 20 - dog.h; dog.dy = 0; dog.grounded = true; }
+                ctx.drawImage(imgDog, dog.x, dog.y, dog.w, dog.h);
+
+                spawnTimer++;
+                if (spawnTimer > 80) {
+                    obstacles.push({ x: canvas.width, y: groundY - 85, w: 100, h: 100, type: Math.random() > 0.5 ? 'cat' : 'house' });
+                    if (Math.random() > 0.7) bones.push({ x: canvas.width + 200, y: 350, w: 60, h: 40 });
+                    spawnTimer = 0;
+                }
+
+                obstacles.forEach((o, i) => {
+                    o.x -= gameSpeed;
+                    ctx.drawImage(o.type === 'cat' ? imgCat : imgHouse, o.x, o.y, o.w, o.h);
+                    if (dog.x + 40 < o.x + 70 && dog.x + 80 > o.x + 20 && dog.y + 40 < o.y + 80 && dog.y + 90 > o.y + 20) isGameOver = true;
+                    if (o.x < -100) obstacles.splice(i, 1);
+                });
+
+                bones.forEach((b, i) => {
+                    b.x -= gameSpeed;
+                    ctx.drawImage(imgBone, b.x, b.y, b.w, b.h);
+                    if (dog.x < b.x + b.w && dog.x + dog.w > b.x && dog.y < b.y + b.h && dog.y + dog.h > b.y) {
+                        score++; bones.splice(i, 1);
+                    }
+                });
+
+                ctx.fillStyle = "white";
+                ctx.font = "bold 30px sans-serif";
+                ctx.textAlign = "left";
+                ctx.fillText(`🦴 Кістки: ${score}`, 30, 50);
+                ctx.textAlign = "right";
+                ctx.fillText(`Кращий: ${highScore}`, canvas.width - 30, 50);
+            }
+            requestAnimationFrame(gameLoop);
+        }
+
+        // Обробка кліків/дотиків через Canvas
+        canvas.addEventListener('touchstart', (e) => {
+            e.preventDefault();
+            const rect = canvas.getBoundingClientRect();
+            const tx = (e.touches[0].clientX - rect.left) * (canvas.width / rect.width);
+            const ty = (e.touches[0].clientY - rect.top) * (canvas.height / rect.height);
+
+            if (isNaming) {
+                // Натискання на поле вводу
+                if (tx > canvas.width/2 - 200 && tx < canvas.width/2 + 200 && ty > 300 && ty < 360) {
+                    hiddenInput.focus();
+                }
+                // Кнопка ГРАТИ
+                if (tx > canvas.width/2 - 100 && tx < canvas.width/2 + 100 && ty > 400 && ty < 460) {
+                    if (tempName.trim().length >= 2) {
                         localStorage.setItem('beagleUserName', tempName);
                         isNaming = false;
-                        update();
                     }
                 }
-            } else if (!isGameOver && !isCountdown && dog.grounded) {
-                dog.dy = -25; dog.grounded = false;
+            } else if (isGameOver) {
+                // Кнопка RESTART
+                if (tx > canvas.width/2 - 150 && tx < canvas.width/2 + 150 && ty > 400 && ty < 470) {
+                    score = 0; obstacles = []; bones = []; dog.y = 0; isGameOver = false;
+                }
+            } else if (dog.grounded) {
+                dog.dy = -26; dog.grounded = false;
             }
         });
 
@@ -112,101 +157,8 @@
             tempName = e.target.value.toUpperCase();
         });
 
-        function update() {
-            if (isGameOver || isNaming) return;
-            ctx.clearRect(0, 0, canvas.width, canvas.height);
-            const groundY = canvas.height * 0.85;
-
-            clouds.forEach(c => {
-                if (!isCountdown) c.x -= c.speed;
-                ctx.drawImage(imgCloud, c.x, c.y, c.w, c.h);
-                if (c.x + c.w < 0) c.x = canvas.width + 100;
-            });
-
-            ctx.fillStyle = '#458B00';
-            ctx.fillRect(0, groundY, canvas.width, canvas.height * 0.15);
-
-            if (isCountdown) {
-                countdownTimer++;
-                if (countdownTimer >= 60) { countdownValue--; countdownTimer = 0; }
-                if (countdownValue <= 0) isCountdown = false;
-                ctx.drawImage(imgDog, dog.x, groundY + 20 - dog.h, dog.w, dog.h);
-                ctx.fillStyle = "rgba(0,0,0,0.4)"; ctx.fillRect(0,0,canvas.width,canvas.height);
-                ctx.fillStyle = "white"; ctx.font = "bold 150px sans-serif"; ctx.textAlign = "center";
-                ctx.fillText(countdownValue, canvas.width/2, canvas.height/2+50);
-                requestAnimationFrame(update); return;
-            }
-
-            dog.dy += 1.0; dog.y += dog.dy;
-            if (dog.y + dog.h > groundY + 20) { dog.y = groundY + 20 - dog.h; dog.dy = 0; dog.grounded = true; }
-            ctx.drawImage(imgDog, dog.x, dog.y, dog.w, dog.h);
-
-            spawnTimer++;
-            if (spawnTimer > (100 - gameSpeed * 2)) {
-                let type = Math.random() > 0.5 ? 'cat' : 'house';
-                obstacles.push({ x: canvas.width, y: groundY - 85, w: 100, h: 100, type: type });
-                if (Math.random() > 0.6) obstacles.push({ x: canvas.width + 75, y: groundY - 85, w: 100, h: 100, type: type });
-                if (Math.random() > 0.5) bones.push({ x: canvas.width + 250, y: 320, w: 60, h: 40 });
-                spawnTimer = 0;
-            }
-
-            obstacles.forEach((o, i) => {
-                o.x -= gameSpeed;
-                ctx.drawImage(o.type === 'cat' ? imgCat : imgHouse, o.x, o.y, o.w, o.h);
-                if (dog.x + 45 < o.x + 75 && dog.x + 85 > o.x + 25 && dog.y + 40 < o.y + 80 && dog.y + 85 > o.y + 20) endGame();
-                if (o.x < -150) obstacles.splice(i, 1);
-            });
-
-            bones.forEach((b, i) => {
-                b.x -= gameSpeed;
-                ctx.drawImage(imgBone, b.x, b.y, b.w, b.h);
-                if (dog.x < b.x + b.w && dog.x + dog.w > b.x && dog.y < b.y + b.h && dog.y + dog.h > b.y) {
-                    score++; scoreElement.innerText = `Bones: ${score} | Best: ${highScore}`;
-                    bones.splice(i, 1);
-                }
-            });
-            requestAnimationFrame(update);
-        }
-
-        function endGame() {
-            isGameOver = true;
-            gameOverScreen.style.display = 'flex';
-            document.getElementById('final-score').innerText = `Score: ${score}`;
-            if (score > highScore) { highScore = score; localStorage.setItem('beagleBest', highScore); }
-            
-            let name = localStorage.getItem('beagleUserName');
-            let leaders = JSON.parse(localStorage.getItem('beagleGlobalTops')) || [];
-            let existing = leaders.find(l => l.username === name);
-            if (existing) { if (score > existing.score) existing.score = score; }
-            else { leaders.push({ username: name, score: score }); }
-            leaders.sort((a,b) => b.score - a.score);
-            leaders = leaders.slice(0, 20);
-            localStorage.setItem('beagleGlobalTops', JSON.stringify(leaders));
-            renderLeaders(leaders, name);
-        }
-
-        function renderLeaders(leaders, name) {
-            const list = document.getElementById('leaderboard-list');
-            list.innerHTML = leaders.map((l, i) => `
-                <div class="score-row ${l.username === name ? 'current-player' : ''}">
-                    <span style="color:#ffd700;">#${i+1}</span>
-                    <span style="flex-grow:1; text-align:left; margin-left:10px;">${l.username}</span>
-                    <span style="font-weight:bold;">${l.score} 🦴</span>
-                </div>
-            `).join('');
-        }
-
-        function restart() {
-            score = 0; isGameOver = false; isCountdown = true; countdownValue = 3;
-            obstacles = []; bones = []; dog.y = 0;
-            gameOverScreen.style.display = 'none';
-            scoreElement.innerText = `Bones: 0 | Best: ${highScore}`;
-            update();
-        }
-
-        for(let i=0; i<4; i++) clouds.push({ x: Math.random()*canvas.width, y: Math.random()*150, w: 160, h: 100, speed: 1+Math.random() });
-        
-        if (isNaming) drawNamingScreen(); else update();
+        // Запуск
+        gameLoop();
     </script>
 </body>
 </html>
