@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Beagle Run - Zoom Edition</title>
+    <title>Beagle Run - Bonus Jump</title>
     <style>
         html, body { margin: 0; padding: 0; width: 100%; height: 100%; background: #1a1a1a; overflow: hidden; display: flex; justify-content: center; align-items: center; font-family: sans-serif; }
         canvas { display: block; background: #87CEEB; touch-action: none; width: 100vw; height: 56.25vw; max-height: 100vh; max-width: 177.78vh; }
@@ -44,7 +44,6 @@
         let gameSpeed = 8.8, isGameOver = false, isWaiting = true;
         let spawnTimer = 0, playerName = localStorage.getItem('beagleUserName') || "BeagleOli";
         
-        // Збільшений розмір собаки: 125 -> 155
         let dog = { x: 150, y: 0, w: 155, h: 155, dy: 0, jump: 28, grounded: false };
         let obstacles = [], bones = [], clouds = [];
 
@@ -70,7 +69,7 @@
 
         function gameLoop() {
             ctx.clearRect(0, 0, canvas.width, canvas.height);
-            const groundY = canvas.height * 0.82; // Трохи вище земля через масштаб
+            const groundY = canvas.height * 0.82;
 
             clouds.forEach(c => {
                 c.x -= c.speed;
@@ -98,24 +97,28 @@
                 
                 if (spawnTimer > groupGap) {
                     let type = Math.random() > 0.5 ? 'cat' : 'house';
-                    // Збільшений розмір об'єктів: 100 -> 125
                     let objW = 125, objH = 125;
-                    obstacles.push({ x: canvas.width, y: groundY - (objH - 15), w: objW, h: objH, type: type });
+                    let objX = canvas.width;
+                    obstacles.push({ x: objX, y: groundY - (objH - 15), w: objW, h: objH, type: type });
                     
+                    // Шанс 70% спавнити кістку саме над перешкодою
+                    if (Math.random() < 0.7) {
+                        bones.push({ x: objX + 25, y: groundY - 260, w: 75, h: 50 });
+                    }
+
                     if (Math.random() < 0.32) {
-                        // Подвійні тепер теж більші та поруч
-                        obstacles.push({ x: canvas.width + 105, y: groundY - (objH - 15), w: objW, h: objH, type: type });
+                        let secondX = objX + 105;
+                        obstacles.push({ x: secondX, y: groundY - (objH - 15), w: objW, h: objH, type: type });
+                        // Для подвійних об'єктів кістка трохи зміщена для краси
+                        if (Math.random() < 0.5) bones.push({ x: secondX + 25, y: groundY - 260, w: 75, h: 50 });
                     }
                     
                     spawnTimer = 0;
-                    if (Math.random() > 0.4) bones.push({ x: canvas.width + 300, y: 320, w: 75, h: 50 });
                 }
 
                 obstacles.forEach((o, i) => {
                     o.x -= gameSpeed;
                     ctx.drawImage(o.type === 'cat' ? imgCat : imgHouse, o.x, o.y, o.w, o.h);
-                    
-                    // Адаптована колізія під масштаб
                     if (dog.x + 65 < o.x + 100 && dog.x + 110 > o.x + 25 && dog.y + 60 < o.y + 90 && dog.y + 115 > o.y + 25) {
                         isGameOver = true;
                         document.getElementById('final-score').innerText = "Your Score: " + score;
