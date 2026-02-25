@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Beagle Run - Grounded</title>
+    <title>Beagle Run - Perfect Alignment</title>
     <style>
         html, body { margin: 0; padding: 0; width: 100%; height: 100%; background: #1a1a1a; overflow: hidden; display: flex; justify-content: center; align-items: center; font-family: sans-serif; }
         canvas { display: block; background: #87CEEB; touch-action: none; width: 100vw; height: 56.25vw; max-height: 100vh; max-width: 177.78vh; }
@@ -33,7 +33,7 @@
         const list = document.getElementById('leaderboard-list');
 
         canvas.width = 1280; canvas.height = 720;
-        const groundLevel = canvas.height * 0.85; // Чітка лінія горизонту
+        const groundY = canvas.height * 0.85; 
         
         const imgDog = new Image(); imgDog.src = '1124-removebg-preview.png';
         const imgCat = new Image(); imgCat.src = '1126-removebg-preview.png';
@@ -45,8 +45,8 @@
         let gameSpeed = 8.8, isGameOver = false, isWaiting = true;
         let spawnTimer = 0, playerName = localStorage.getItem('beagleUserName') || "BeagleOli";
         
-        // Масштабований бігль
-        let dog = { x: 150, y: groundLevel - 150, w: 155, h: 155, dy: 0, jump: 28, grounded: false };
+        // Позиція собаки заземлена (y + h = groundY)
+        let dog = { x: 150, y: groundY - 145, w: 155, h: 155, dy: 0, jump: 28, grounded: false };
         let obstacles = [], bones = [], clouds = [];
 
         for(let i=0; i<5; i++) clouds.push({ x: Math.random()*canvas.width, y: Math.random()*150, w: 180, h: 110, speed: 0.5 + Math.random() });
@@ -71,30 +71,26 @@
 
         function gameLoop() {
             ctx.clearRect(0, 0, canvas.width, canvas.height);
+            ctx.fillStyle = '#87CEEB'; ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-            // Малюємо небо та хмари
             clouds.forEach(c => {
                 c.x -= c.speed;
                 ctx.drawImage(imgCloud, c.x, c.y, c.w, c.h);
                 if (c.x + c.w < 0) c.x = canvas.width;
             });
 
-            // Малюємо землю
             ctx.fillStyle = '#458B00';
-            ctx.fillRect(0, groundLevel, canvas.width, canvas.height - groundLevel);
+            ctx.fillRect(0, groundY, canvas.width, canvas.height - groundY);
 
             if (isWaiting) {
-                ctx.fillStyle = "rgba(0,0,0,0.7)";
-                ctx.fillRect(0, 0, canvas.width, canvas.height);
-                ctx.fillStyle = "white"; ctx.textAlign = "center";
-                ctx.font = "bold 50px sans-serif";
+                ctx.fillStyle = "rgba(0,0,0,0.7)"; ctx.fillRect(0, 0, canvas.width, canvas.height);
+                ctx.fillStyle = "white"; ctx.textAlign = "center"; ctx.font = "bold 50px sans-serif";
                 ctx.fillText(`READY, ${playerName.toUpperCase()}?`, canvas.width/2, 340);
             } else if (!isGameOver) {
-                // Фізика собаки
                 dog.dy += 1.5; dog.y += dog.dy;
-                // Приземлення чітко на траву
-                if (dog.y + dog.h > groundLevel + 10) { 
-                    dog.y = groundLevel + 10 - dog.h; 
+                // Чітка посадка на траву (без просвітів)
+                if (dog.y + dog.h > groundY + 5) { 
+                    dog.y = groundY + 5 - dog.h; 
                     dog.dy = 0; 
                     dog.grounded = true; 
                 }
@@ -105,16 +101,16 @@
                     let type = Math.random() > 0.5 ? 'cat' : 'house';
                     let objW = 125, objH = 125;
                     let objX = canvas.width;
-                    // Об'єкти тепер чітко на траві (groundLevel - objH)
-                    obstacles.push({ x: objX, y: groundLevel - objH + 15, w: objW, h: objH, type: type });
                     
-                    // Кістка на зручній висоті над об'єктом
-                    if (Math.random() < 0.75) {
-                        bones.push({ x: objX + 25, y: groundLevel - 280, w: 75, h: 50 });
-                    }
+                    // ОБ'ЄКТИ ОПУЩЕНІ: тепер y розраховано так, щоб вони стояли на траві
+                    let finalY = groundY - objH + 10;
+                    obstacles.push({ x: objX, y: finalY, w: objW, h: objH, type: type });
+                    
+                    if (Math.random() < 0.75) bones.push({ x: objX + 25, y: groundY - 290, w: 75, h: 50 });
 
-                    if (Math.random() < 0.3) {
-                        obstacles.push({ x: objX + 110, y: groundLevel - objH + 15, w: objW, h: objH, type: type });
+                    // ПОДВІЙНІ ОБ'ЄКТИ: зближено (було +110, стало +95)
+                    if (Math.random() < 0.35) {
+                        obstacles.push({ x: objX + 95, y: finalY, w: objW, h: objH, type: type });
                     }
                     spawnTimer = 0;
                 }
@@ -122,15 +118,14 @@
                 obstacles.forEach((o) => {
                     o.x -= gameSpeed;
                     ctx.drawImage(o.type === 'cat' ? imgCat : imgHouse, o.x, o.y, o.w, o.h);
-                    // Колізія
-                    if (dog.x + 60 < o.x + 95 && dog.x + 115 > o.x + 30 && dog.y + 60 < o.y + 90 && dog.y + 120 > o.y + 30) {
+                    if (dog.x + 65 < o.x + 100 && dog.x + 110 > o.x + 25 && dog.y + 60 < o.y + 100 && dog.y + 125 > o.y + 20) {
                         isGameOver = true;
                         document.getElementById('final-score').innerText = "Your Score: " + score;
                         updateLeaderboard();
                         overlay.style.display = 'flex';
                     }
                 });
-                obstacles = obstacles.filter(o => o.x > -200);
+                obstacles = obstacles.filter(o => o.x > -250);
 
                 bones.forEach((b, i) => {
                     b.x -= gameSpeed;
@@ -148,16 +143,13 @@
         }
 
         function restartGame() {
-            score = 0; obstacles = []; bones = []; dog.y = groundLevel - 150; 
-            isGameOver = false; isWaiting = false;
-            overlay.style.display = 'none';
+            score = 0; obstacles = []; bones = []; dog.y = groundY - 145; 
+            isGameOver = false; isWaiting = false; overlay.style.display = 'none';
         }
 
         function handleInput() {
             if (isWaiting) isWaiting = false;
-            else if (!isGameOver && dog.grounded) {
-                dog.dy = -dog.jump; dog.grounded = false;
-            }
+            else if (!isGameOver && dog.grounded) { dog.dy = -dog.jump; dog.grounded = false; }
         }
         window.addEventListener('touchstart', (e) => { if(e.target.tagName !== 'BUTTON') { e.preventDefault(); handleInput(); } }, { passive: false });
         window.addEventListener('mousedown', (e) => { if(e.target.tagName !== 'BUTTON') handleInput(); });
