@@ -1,159 +1,270 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Beagle Run - Perfect Alignment</title>
-    <style>
-        html, body { margin: 0; padding: 0; width: 100%; height: 100%; background: #1a1a1a; overflow: hidden; display: flex; justify-content: center; align-items: center; font-family: sans-serif; }
-        canvas { display: block; background: #87CEEB; touch-action: none; width: 100vw; height: 56.25vw; max-height: 100vh; max-width: 177.78vh; }
-        #ui-overlay { position: absolute; width: 100%; height: 100%; display: none; flex-direction: column; align-items: center; justify-content: center; background: rgba(0, 0, 0, 0.85); color: white; z-index: 20; pointer-events: none; }
-        #leaderboard { margin: 15px 0; background: rgba(255, 255, 255, 0.1); padding: 15px; border-radius: 12px; width: 280px; border: 1px solid rgba(255, 255, 255, 0.2); pointer-events: auto; }
-        .score-row { display: flex; justify-content: space-between; padding: 8px 10px; border-bottom: 1px solid rgba(255, 255, 255, 0.05); font-size: 16px; }
-        .current-player { background: rgba(255, 215, 0, 0.3) !important; border: 1px solid #ffd700; border-radius: 5px; }
-        .btn-play { margin-top: 15px; padding: 15px 40px; background: #ffd700; color: black; border-radius: 10px; font-weight: bold; font-size: 20px; pointer-events: auto; cursor: pointer; border: none; }
-    </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Beagle Run</title>
+
+<style>
+html, body {
+    margin:0;
+    padding:0;
+    width:100%;
+    height:100%;
+    background:#1a1a1a;
+    overflow:hidden;
+    display:flex;
+    justify-content:center;
+    align-items:center;
+    font-family:sans-serif;
+}
+
+canvas{
+    display:block;
+    background:#87CEEB;
+    touch-action:none;
+    width:100vw;
+    height:56.25vw;
+    max-height:100vh;
+    max-width:177.78vh;
+}
+</style>
 </head>
+
 <body>
-    <div id="ui-overlay">
-        <h1 style="color:#ff4d4d; margin:0; font-size: 40px;">GAME OVER</h1>
-        <p id="final-score" style="font-size:24px; margin:10px 0;">Score: 0</p>
-        <div id="leaderboard">
-            <div style="font-weight:bold; text-align:center; color:#ffd700; margin-bottom:10px; font-size: 18px;">🏆 GLOBAL TOP 20</div>
-            <div id="leaderboard-list"></div>
-        </div>
-        <button class="btn-play" onclick="restartGame()">PLAY AGAIN</button>
-    </div>
-    <canvas id="game"></canvas>
+<canvas id="game"></canvas>
 
-    <script>
-        const canvas = document.getElementById('game');
-        const ctx = canvas.getContext('2d');
-        const overlay = document.getElementById('ui-overlay');
-        const list = document.getElementById('leaderboard-list');
+<script>
+const canvas = document.getElementById('game');
+const ctx = canvas.getContext('2d');
 
-        canvas.width = 1280; canvas.height = 720;
-        const groundY = canvas.height * 0.85; 
-        
-        const imgDog = new Image(); imgDog.src = '1124-removebg-preview.png';
-        const imgCat = new Image(); imgCat.src = '1126-removebg-preview.png';
-        const imgBone = new Image(); imgBone.src = '1127-removebg-preview.png';
-        const imgHouse = new Image(); imgHouse.src = '1128-removebg-preview.png';
-        const imgCloud = new Image(); imgCloud.src = '1176-removebg-preview.png';
+canvas.width = 1280;
+canvas.height = 720;
 
-        let score = 0, highScore = localStorage.getItem('beagleBest') || 0;
-        let gameSpeed = 8.8, isGameOver = false, isWaiting = true;
-        let spawnTimer = 0, playerName = localStorage.getItem('beagleUserName') || "BeagleOli";
-        
-        // Позиція собаки заземлена (y + h = groundY)
-        let dog = { x: 150, y: groundY - 145, w: 155, h: 155, dy: 0, jump: 28, grounded: false };
-        let obstacles = [], bones = [], clouds = [];
+/* === ЗЕМЛЯ === */
+const groundHeight = 140;
+const groundY = canvas.height - groundHeight;
 
-        for(let i=0; i<5; i++) clouds.push({ x: Math.random()*canvas.width, y: Math.random()*150, w: 180, h: 110, speed: 0.5 + Math.random() });
+/* === КАРТИНКИ === */
+const imgDog = new Image(); imgDog.src = '1124-removebg-preview.png';
+const imgCat = new Image(); imgCat.src = '1126-removebg-preview.png';
+const imgHouse = new Image(); imgHouse.src = '1128-removebg-preview.png';
+const imgBone = new Image(); imgBone.src = '1127-removebg-preview.png';
+const imgCloud = new Image(); imgCloud.src = '1176-removebg-preview.png';
 
-        function updateLeaderboard() {
-            if (score > highScore) { highScore = score; localStorage.setItem('beagleBest', highScore); }
-            let leaders = JSON.parse(localStorage.getItem('beagleGlobalTops')) || [];
-            let me = leaders.find(l => l.username === playerName);
-            if (me) { if (score > me.score) me.score = score; } 
-            else { leaders.push({ username: playerName, score: score }); }
-            leaders.sort((a,b) => b.score - a.score);
-            leaders = leaders.slice(0, 20);
-            localStorage.setItem('beagleGlobalTops', JSON.stringify(leaders));
+/* === ГРА === */
+let score = 0;
+let best = localStorage.getItem('beagleBest') || 0;
+let gameSpeed = 9;
+let spawnTimer = 0;
+let isGameOver = false;
+let isWaiting = true;
 
-            list.innerHTML = leaders.map((l, i) => `
-                <div class="score-row ${l.username === playerName ? 'current-player' : ''}">
-                    <span>#${i+1} ${l.username}</span>
-                    <span style="font-weight:bold;">${l.score} 🦴</span>
-                </div>
-            `).join('');
+/* === СОБАКА === */
+const dog = {
+    x:150,
+    w:150,
+    h:150,
+    y: groundY - 150,
+    dy:0,
+    gravity:1.5,
+    jumpPower:26,
+    grounded:true
+};
+
+/* === МАСИВИ === */
+let obstacles = [];
+let bones = [];
+let clouds = [];
+
+for(let i=0;i<5;i++){
+    clouds.push({
+        x:Math.random()*canvas.width,
+        y:Math.random()*200,
+        w:170,
+        h:100,
+        speed:0.4+Math.random()
+    });
+}
+
+/* ================= GAME LOOP ================= */
+
+function gameLoop(){
+    ctx.clearRect(0,0,canvas.width,canvas.height);
+
+    /* НЕБО */
+    ctx.fillStyle="#87CEEB";
+    ctx.fillRect(0,0,canvas.width,canvas.height);
+
+    /* ХМАРИ */
+    clouds.forEach(c=>{
+        c.x -= c.speed;
+        if(c.x + c.w < 0) c.x = canvas.width;
+        ctx.drawImage(imgCloud,c.x,c.y,c.w,c.h);
+    });
+
+    /* ЗЕМЛЯ */
+    ctx.fillStyle="#3c8d0d";
+    ctx.fillRect(0,groundY,canvas.width,groundHeight);
+
+    if(isWaiting){
+        ctx.fillStyle="rgba(0,0,0,0.6)";
+        ctx.fillRect(0,0,canvas.width,canvas.height);
+        ctx.fillStyle="white";
+        ctx.font="bold 50px sans-serif";
+        ctx.textAlign="center";
+        ctx.fillText("TAP TO START",canvas.width/2,350);
+        requestAnimationFrame(gameLoop);
+        return;
+    }
+
+    if(!isGameOver){
+
+        /* ГРАВІТАЦІЯ */
+        dog.dy += dog.gravity;
+        dog.y += dog.dy;
+
+        if(dog.y + dog.h >= groundY){
+            dog.y = groundY - dog.h;
+            dog.dy = 0;
+            dog.grounded = true;
         }
 
-        function gameLoop() {
-            ctx.clearRect(0, 0, canvas.width, canvas.height);
-            ctx.fillStyle = '#87CEEB'; ctx.fillRect(0, 0, canvas.width, canvas.height);
+        ctx.drawImage(imgDog,dog.x,dog.y,dog.w,dog.h);
 
-            clouds.forEach(c => {
-                c.x -= c.speed;
-                ctx.drawImage(imgCloud, c.x, c.y, c.w, c.h);
-                if (c.x + c.w < 0) c.x = canvas.width;
+        /* СПАВН */
+        spawnTimer++;
+        if(spawnTimer > 90){
+
+            const objW = 120;
+            const objH = 120;
+            const baseY = groundY - objH;
+
+            obstacles.push({
+                x:canvas.width,
+                y:baseY,
+                w:objW,
+                h:objH,
+                type: Math.random()>0.5 ? "cat":"house"
             });
 
-            ctx.fillStyle = '#458B00';
-            ctx.fillRect(0, groundY, canvas.width, canvas.height - groundY);
-
-            if (isWaiting) {
-                ctx.fillStyle = "rgba(0,0,0,0.7)"; ctx.fillRect(0, 0, canvas.width, canvas.height);
-                ctx.fillStyle = "white"; ctx.textAlign = "center"; ctx.font = "bold 50px sans-serif";
-                ctx.fillText(`READY, ${playerName.toUpperCase()}?`, canvas.width/2, 340);
-            } else if (!isGameOver) {
-                dog.dy += 1.5; dog.y += dog.dy;
-                // Чітка посадка на траву (без просвітів)
-                if (dog.y + dog.h > groundY + 5) { 
-                    dog.y = groundY + 5 - dog.h; 
-                    dog.dy = 0; 
-                    dog.grounded = true; 
-                }
-                ctx.drawImage(imgDog, dog.x, dog.y, dog.w, dog.h);
-
-                spawnTimer++;
-                if (spawnTimer > 85) {
-                    let type = Math.random() > 0.5 ? 'cat' : 'house';
-                    let objW = 125, objH = 125;
-                    let objX = canvas.width;
-                    
-                    // ОБ'ЄКТИ ОПУЩЕНІ: тепер y розраховано так, щоб вони стояли на траві
-                    let finalY = groundY - objH + 10;
-                    obstacles.push({ x: objX, y: finalY, w: objW, h: objH, type: type });
-                    
-                    if (Math.random() < 0.75) bones.push({ x: objX + 25, y: groundY - 290, w: 75, h: 50 });
-
-                    // ПОДВІЙНІ ОБ'ЄКТИ: зближено (було +110, стало +95)
-                    if (Math.random() < 0.35) {
-                        obstacles.push({ x: objX + 95, y: finalY, w: objW, h: objH, type: type });
-                    }
-                    spawnTimer = 0;
-                }
-
-                obstacles.forEach((o) => {
-                    o.x -= gameSpeed;
-                    ctx.drawImage(o.type === 'cat' ? imgCat : imgHouse, o.x, o.y, o.w, o.h);
-                    if (dog.x + 65 < o.x + 100 && dog.x + 110 > o.x + 25 && dog.y + 60 < o.y + 100 && dog.y + 125 > o.y + 20) {
-                        isGameOver = true;
-                        document.getElementById('final-score').innerText = "Your Score: " + score;
-                        updateLeaderboard();
-                        overlay.style.display = 'flex';
-                    }
+            /* ПОДВІЙНИЙ ОБ'ЄКТ — ближче */
+            if(Math.random() < 0.35){
+                obstacles.push({
+                    x:canvas.width + 70,   // було далеко, тепер ближче
+                    y:baseY,
+                    w:objW,
+                    h:objH,
+                    type: Math.random()>0.5 ? "cat":"house"
                 });
-                obstacles = obstacles.filter(o => o.x > -250);
-
-                bones.forEach((b, i) => {
-                    b.x -= gameSpeed;
-                    ctx.drawImage(imgBone, b.x, b.y, b.w, b.h);
-                    if (dog.x < b.x + b.w && dog.x + dog.w > b.x && dog.y < b.y + b.h && dog.y + dog.h > b.y) {
-                        score++; bones.splice(i, 1);
-                    }
-                });
-
-                ctx.fillStyle = "white"; ctx.font = "bold 35px sans-serif"; ctx.textAlign = "left";
-                ctx.fillText(`Bones: ${score}`, 40, 60);
-                ctx.textAlign = "right"; ctx.fillText(`Best: ${highScore}`, canvas.width - 40, 60);
             }
-            requestAnimationFrame(gameLoop);
+
+            if(Math.random() < 0.6){
+                bones.push({
+                    x:canvas.width+40,
+                    y:groundY - 260,
+                    w:70,
+                    h:50
+                });
+            }
+
+            spawnTimer=0;
         }
 
-        function restartGame() {
-            score = 0; obstacles = []; bones = []; dog.y = groundY - 145; 
-            isGameOver = false; isWaiting = false; overlay.style.display = 'none';
-        }
+        /* ПЕРЕШКОДИ */
+        obstacles.forEach(o=>{
+            o.x -= gameSpeed;
+            ctx.drawImage(
+                o.type==="cat"?imgCat:imgHouse,
+                o.x,o.y,o.w,o.h
+            );
 
-        function handleInput() {
-            if (isWaiting) isWaiting = false;
-            else if (!isGameOver && dog.grounded) { dog.dy = -dog.jump; dog.grounded = false; }
-        }
-        window.addEventListener('touchstart', (e) => { if(e.target.tagName !== 'BUTTON') { e.preventDefault(); handleInput(); } }, { passive: false });
-        window.addEventListener('mousedown', (e) => { if(e.target.tagName !== 'BUTTON') handleInput(); });
-        gameLoop();
-    </script>
+            /* КОЛІЗІЯ */
+            if(
+                dog.x < o.x + o.w - 25 &&
+                dog.x + dog.w - 25 > o.x &&
+                dog.y < o.y + o.h - 20 &&
+                dog.y + dog.h - 20 > o.y
+            ){
+                isGameOver=true;
+                if(score>best){
+                    best=score;
+                    localStorage.setItem("beagleBest",best);
+                }
+            }
+        });
+
+        obstacles = obstacles.filter(o=>o.x>-200);
+
+        /* КІСТКИ */
+        bones.forEach((b,i)=>{
+            b.x -= gameSpeed;
+            ctx.drawImage(imgBone,b.x,b.y,b.w,b.h);
+
+            if(
+                dog.x < b.x + b.w &&
+                dog.x + dog.w > b.x &&
+                dog.y < b.y + b.h &&
+                dog.y + dog.h > b.y
+            ){
+                score++;
+                bones.splice(i,1);
+            }
+        });
+
+        /* ТЕКСТ */
+        ctx.fillStyle="white";
+        ctx.font="bold 30px sans-serif";
+        ctx.textAlign="left";
+        ctx.fillText("Bones: "+score,40,50);
+        ctx.textAlign="right";
+        ctx.fillText("Best: "+best,canvas.width-40,50);
+
+    }else{
+        ctx.fillStyle="rgba(0,0,0,0.7)";
+        ctx.fillRect(0,0,canvas.width,canvas.height);
+        ctx.fillStyle="white";
+        ctx.font="bold 50px sans-serif";
+        ctx.textAlign="center";
+        ctx.fillText("GAME OVER",canvas.width/2,320);
+        ctx.font="30px sans-serif";
+        ctx.fillText("Tap to Restart",canvas.width/2,380);
+    }
+
+    requestAnimationFrame(gameLoop);
+}
+
+/* ================= INPUT ================= */
+
+function handleInput(){
+    if(isWaiting){
+        isWaiting=false;
+        return;
+    }
+
+    if(isGameOver){
+        score=0;
+        obstacles=[];
+        bones=[];
+        isGameOver=false;
+        dog.y=groundY-dog.h;
+        return;
+    }
+
+    if(dog.grounded){
+        dog.dy = -dog.jumpPower;
+        dog.grounded=false;
+    }
+}
+
+window.addEventListener("touchstart",e=>{
+    e.preventDefault();
+    handleInput();
+},{passive:false});
+
+window.addEventListener("mousedown",handleInput);
+
+gameLoop();
+</script>
 </body>
 </html>
