@@ -46,7 +46,7 @@
 
         let playerName = localStorage.getItem('beagleUserName');
         if (!playerName) {
-            playerName = prompt("Enter your name for the leaderboard:", "BeagleOli");
+            playerName = prompt("Enter your name:", "BeagleOli");
             if (!playerName || playerName.trim() === "") playerName = "Guest" + Math.floor(Math.random() * 100);
             localStorage.setItem('beagleUserName', playerName);
         }
@@ -69,7 +69,7 @@
         const imgCloud = new Image(); imgCloud.src = '1176-removebg-preview.png';
 
         let score = 0, gameSpeed = 9, isGameOver = false, isWaiting = true;
-        let scoreScale = 1; // Для анімації пульсації
+        let scoreScale = 1;
         let spawnTimer = 0;
         let dog = { x: 150, y: groundY - 135, w: 155, h: 155, dy: 0, jump: 28, grounded: false };
         let obstacles = [], bones = [], clouds = [];
@@ -100,27 +100,18 @@
         }
 
         function drawHUD() {
-            // Малюємо підкладку для лічильника
             ctx.fillStyle = "rgba(0, 0, 0, 0.3)";
             ctx.roundRect(20, 20, 220, 70, 15);
             ctx.fill();
-
-            // Малюємо маленьку іконку кісточки в HUD
             ctx.drawImage(imgBone, 35, 30, 50, 45);
-
-            // Анімований лічильник очок
             ctx.save();
             ctx.translate(150, 55);
             ctx.scale(scoreScale, scoreScale);
             ctx.fillStyle = "white";
-            ctx.font = "bold 45px 'Segoe UI', sans-serif";
+            ctx.font = "bold 45px sans-serif";
             ctx.textAlign = "center";
-            ctx.shadowBlur = 10;
-            ctx.shadowColor = "rgba(0,0,0,0.5)";
             ctx.fillText(score, 0, 15);
             ctx.restore();
-
-            // Поступово повертаємо масштаб до одиниці (плавна анімація)
             if (scoreScale > 1) scoreScale -= 0.05;
         }
 
@@ -153,40 +144,49 @@
                 if (dog.y + dog.h > groundY + 20) { dog.y = groundY + 20 - dog.h; dog.dy = 0; dog.grounded = true; }
                 ctx.drawImage(imgDog, dog.x, dog.y, dog.w, dog.h);
 
+                // --- ВИПРАВЛЕНИЙ СПАВН ОБ'ЄКТІВ ---
                 spawnTimer++;
-                if (spawnTimer > 85) {
+                if (spawnTimer > Math.max(50, 90 - score)) { 
                     let type = Math.random() > 0.5 ? 'cat' : 'house';
                     obstacles.push({ x: canvas.width, y: groundY - 100, w: 125, h: 125, type: type });
-                    if (Math.random() < 0.75) bones.push({ x: canvas.width + 40, y: groundY - 290, w: 75, h: 50 });
+                    
+                    // Шанс на подвійний об'єкт збільшується з прогресом
+                    if (score > 5 && Math.random() < 0.3) {
+                        obstacles.push({ x: canvas.width + 450, y: groundY - 100, w: 125, h: 125, type: Math.random() > 0.5 ? 'cat' : 'house' });
+                    }
+
+                    if (Math.random() < 0.8) bones.push({ x: canvas.width + 100, y: groundY - 290, w: 75, h: 50 });
                     spawnTimer = 0;
                 }
 
-                obstacles.forEach((o) => {
+                obstacles.forEach((o, index) => {
                     o.x -= gameSpeed;
                     ctx.drawImage(o.type === 'cat' ? imgCat : imgHouse, o.x, o.y, o.w, o.h);
-                    if (dog.x + 60 < o.x + 90 && dog.x + 100 > o.x + 30 && dog.y + 60 < o.y + 90 && dog.y + 120 > o.y + 30) {
+                    
+                    // Collision
+                    if (dog.x + 50 < o.x + o.w - 30 && dog.x + dog.w - 50 > o.x + 30 && dog.y + 50 < o.y + o.h - 20 && dog.y + dog.h - 20 > o.y + 20) {
                         isGameOver = true;
                         updateLeaderboard();
                         overlay.style.display = 'flex';
                     }
                 });
+                obstacles = obstacles.filter(o => o.x > -200);
 
                 bones.forEach((b, i) => {
                     b.x -= gameSpeed;
                     ctx.drawImage(imgBone, b.x, b.y, b.w, b.h);
                     if (dog.x < b.x + b.w && dog.x + dog.w > b.x && dog.y < b.y + b.h && dog.y + dog.h > b.y) {
-                        score++; 
-                        scoreScale = 1.5; // Запускаємо пульсацію при зборі
-                        bones.splice(i, 1);
+                        score++; scoreScale = 1.5; bones.splice(i, 1);
+                        if(score % 5 === 0) gameSpeed += 0.3;
                     }
                 });
+                bones = bones.filter(b => b.x > -100);
 
                 drawHUD();
             }
             requestAnimationFrame(gameLoop);
         }
 
-        // Покращений roundRect для старих браузерів
         CanvasRenderingContext2D.prototype.roundRect = function (x, y, w, h, r) {
             if (w < 2 * r) r = w / 2;
             if (h < 2 * r) r = h / 2;
