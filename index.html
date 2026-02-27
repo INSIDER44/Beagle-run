@@ -87,8 +87,8 @@
                 ctx.fillText(`READY, ${playerName.toUpperCase()}?`, canvas.width/2, 340);
             } else if (!isGameOver) {
                 dog.dy += 1.5; dog.y += dog.dy;
-                if (dog.y + dog.h > groundY + 15) { 
-                    dog.y = groundY + 10 - dog.h; 
+                if (dog.y + dog.h > groundY + 20) { 
+                    dog.y = groundY + 20 - dog.h; 
                     dog.dy = 0; 
                     dog.grounded = true; 
                 }
