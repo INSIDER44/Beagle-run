@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Beagle Run - Online Leaderboard</title>
+    <title>Beagle Run - Global Online</title>
     
     <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-database-compat.js"></script>
@@ -11,10 +11,10 @@
     <style>
         html, body { margin: 0; padding: 0; width: 100%; height: 100%; background: #1a1a1a; overflow: hidden; display: flex; justify-content: center; align-items: center; font-family: sans-serif; }
         canvas { display: block; background: #87CEEB; touch-action: none; width: 100vw; height: 56.25vw; max-height: 100vh; max-width: 177.78vh; }
-        #ui-overlay { position: absolute; width: 100%; height: 100%; display: none; flex-direction: column; align-items: center; justify-content: center; background: rgba(0, 0, 0, 0.85); color: white; z-index: 20; pointer-events: none; }
-        #leaderboard { margin: 15px 0; background: rgba(255, 255, 255, 0.1); padding: 15px; border-radius: 12px; width: 280px; border: 1px solid rgba(255, 255, 255, 0.2); pointer-events: auto; max-height: 200px; overflow-y: auto; }
+        #ui-overlay { position: absolute; width: 100%; height: 100%; display: none; flex-direction: column; align-items: center; justify-content: center; background: rgba(0, 0, 0, 0.9); color: white; z-index: 20; pointer-events: none; }
+        #leaderboard { margin: 15px 0; background: rgba(255, 255, 255, 0.1); padding: 15px; border-radius: 12px; width: 280px; border: 1px solid rgba(255, 255, 255, 0.2); pointer-events: auto; max-height: 220px; overflow-y: auto; }
         .score-row { display: flex; justify-content: space-between; padding: 8px 10px; border-bottom: 1px solid rgba(255, 255, 255, 0.05); font-size: 16px; }
-        .current-player { background: rgba(255, 215, 0, 0.3) !important; border: 1px solid #ffd700; border-radius: 5px; }
+        .current-player { background: rgba(255, 215, 0, 0.3) !important; border: 1px solid #ffd700; border-radius: 5px; color: #ffd700; }
         .btn-play { margin-top: 15px; padding: 15px 40px; background: #ffd700; color: black; border-radius: 10px; font-weight: bold; font-size: 20px; pointer-events: auto; cursor: pointer; border: none; }
     </style>
 </head>
@@ -32,7 +32,7 @@
 
     <script>
         const firebaseConfig = {
-          apiKey: "AIzaSyDH40hHvT5RbpN3L5iYaRfaElh_idvl-3U",
+          apiKey: "AIzaSyDH40hHvT5RbpT3L5iYaRfaElh_idvl-3U",
           authDomain: "beaglerun-7ce74.firebaseapp.com",
           projectId: "beaglerun-7ce74",
           storageBucket: "beaglerun-7ce74.firebasestorage.app",
@@ -47,7 +47,7 @@
         let playerName = localStorage.getItem('beagleUserName');
         if (!playerName) {
             playerName = prompt("Enter your name for the leaderboard:", "BeagleOli");
-            if (!playerName) playerName = "Guest" + Math.floor(Math.random() * 100);
+            if (!playerName || playerName.trim() === "") playerName = "Guest" + Math.floor(Math.random() * 100);
             localStorage.setItem('beagleUserName', playerName);
         }
 
@@ -68,17 +68,28 @@
         const imgHouse = new Image(); imgHouse.src = '1128-removebg-preview.png';
         const imgCloud = new Image(); imgCloud.src = '1176-removebg-preview.png';
 
-        let score = 0, highScore = localStorage.getItem('beagleBest') || 0;
-        let gameSpeed = 9, isGameOver = false, isWaiting = true;
+        let score = 0, gameSpeed = 9, isGameOver = false, isWaiting = true;
         let spawnTimer = 0;
-        
         let dog = { x: 150, y: groundY - 135, w: 155, h: 155, dy: 0, jump: 28, grounded: false };
         let obstacles = [], bones = [], clouds = [];
 
         for(let i=0; i<5; i++) clouds.push({ x: Math.random()*canvas.width, y: Math.random()*150, w: 180, h: 110, speed: 0.5 + Math.random() });
 
         function updateLeaderboard() {
-            database.ref('scores/' + playerName).set({ username: playerName, score: score });
+            // МИТТЄВО показуємо результат на екрані
+            document.getElementById('final-score').innerText = "Bones Collected: " + score;
+
+            const userRef = database.ref('scores/' + playerName);
+            
+            // Перевіряємо, чи новий результат кращий за старий в базі
+            userRef.once('value').then((snapshot) => {
+                const existingData = snapshot.val();
+                if (!existingData || score > existingData.score) {
+                    userRef.set({ username: playerName, score: score });
+                }
+            });
+
+            // Підтягуємо ТОП-20
             database.ref('scores').orderByChild('score').limitToLast(20).on('value', (snapshot) => {
                 let leaders = [];
                 snapshot.forEach((child) => { leaders.push(child.val()); });
@@ -154,11 +165,12 @@
         }
 
         function restartGame() {
-            score = 0; obstacles = []; bones = []; isGameOver = false; isWaiting = false; overlay.style.display = 'none';
+            score = 0; obstacles = []; bones = []; dog.y = groundY - 135; gameSpeed = 9;
+            isGameOver = false; isWaiting = false; overlay.style.display = 'none';
         }
 
-        window.addEventListener('mousedown', handleInput);
-        window.addEventListener('touchstart', handleInput);
+        window.addEventListener('mousedown', (e) => { if(e.target.tagName !== 'BUTTON') handleInput(); });
+        window.addEventListener('touchstart', (e) => { if(e.target.tagName !== 'BUTTON') handleInput(); });
         function handleInput() { if (isWaiting) isWaiting = false; else if (!isGameOver && dog.grounded) { dog.dy = -dog.jump; dog.grounded = false; } }
         gameLoop();
     </script>
