@@ -3,12 +3,16 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Beagle Run - Sky Cycle</title>
+    <title>Beagle Run - Global Online</title>
+    
+    <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-database-compat.js"></script>
+
     <style>
         html, body { margin: 0; padding: 0; width: 100%; height: 100%; background: #1a1a1a; overflow: hidden; display: flex; justify-content: center; align-items: center; font-family: sans-serif; }
         canvas { display: block; background: #87CEEB; touch-action: none; width: 100vw; height: 56.25vw; max-height: 100vh; max-width: 177.78vh; }
         #ui-overlay { position: absolute; width: 100%; height: 100%; display: none; flex-direction: column; align-items: center; justify-content: center; background: rgba(0, 0, 0, 0.85); color: white; z-index: 20; pointer-events: none; }
-        #leaderboard { margin: 15px 0; background: rgba(255, 255, 255, 0.1); padding: 15px; border-radius: 12px; width: 280px; border: 1px solid rgba(255, 255, 255, 0.2); pointer-events: auto; }
+        #leaderboard { margin: 15px 0; background: rgba(255, 255, 255, 0.1); padding: 15px; border-radius: 12px; width: 280px; border: 1px solid rgba(255, 255, 255, 0.2); pointer-events: auto; max-height: 200px; overflow-y: auto; }
         .score-row { display: flex; justify-content: space-between; padding: 8px 10px; border-bottom: 1px solid rgba(255, 255, 255, 0.05); font-size: 16px; }
         .current-player { background: rgba(255, 215, 0, 0.3) !important; border: 1px solid #ffd700; border-radius: 5px; }
         .btn-play { margin-top: 15px; padding: 15px 40px; background: #ffd700; color: black; border-radius: 10px; font-weight: bold; font-size: 20px; pointer-events: auto; cursor: pointer; border: none; }
@@ -27,6 +31,21 @@
     <canvas id="game"></canvas>
 
     <script>
+        // Твій актуальний конфіг (уточнений)
+        const firebaseConfig = {
+          apiKey: "AIzaSyDH40hHvT5RbpN3L5iYaRfaElh_idvl-3U",
+          authDomain: "beaglerun-7ce74.firebaseapp.com",
+          projectId: "beaglerun-7ce74",
+          storageBucket: "beaglerun-7ce74.firebasestorage.app",
+          messagingSenderId: "300084003629",
+          appId: "1:300084003629:web:d9d01a4a9ff34e093189a4",
+          databaseURL: "https://beaglerun-7ce74-default-rtdb.firebaseio.com/" // Автоматично згенерований шлях
+        };
+
+        // Ініціалізація бази даних
+        firebase.initializeApp(firebaseConfig);
+        const database = firebase.database();
+
         const canvas = document.getElementById('game');
         const ctx = canvas.getContext('2d');
         const overlay = document.getElementById('ui-overlay');
@@ -35,7 +54,6 @@
         canvas.width = 1280; canvas.height = 720;
         const groundY = canvas.height * 0.85; 
         
-        // Масив кольорів неба (кожні 10 кісточок)
         const skyColors = ['#87CEEB', '#FFB366', '#FF7F50', '#4B0082', '#000033'];
         let stars = [];
         for(let i=0; i<50; i++) stars.push({x: Math.random()*canvas.width, y: Math.random()*300, r: Math.random()*2});
@@ -50,49 +68,44 @@
         let gameSpeed = 8.8, isGameOver = false, isWaiting = true;
         let spawnTimer = 0, playerName = localStorage.getItem('beagleUserName') || "BeagleOli";
         
-        // Твоє налаштування висоти бігля
         let dog = { x: 150, y: groundY - 135, w: 155, h: 155, dy: 0, jump: 28, grounded: false };
         let obstacles = [], bones = [], clouds = [];
 
         for(let i=0; i<5; i++) clouds.push({ x: Math.random()*canvas.width, y: Math.random()*150, w: 180, h: 110, speed: 0.5 + Math.random() });
 
         function updateLeaderboard() {
-            if (score > highScore) { highScore = score; localStorage.setItem('beagleBest', highScore); }
-            let leaders = JSON.parse(localStorage.getItem('beagleGlobalTops')) || [];
-            let me = leaders.find(l => l.username === playerName);
-            if (me) { if (score > me.score) me.score = score; } 
-            else { leaders.push({ username: playerName, score: score }); }
-            leaders.sort((a,b) => b.score - a.score);
-            leaders = leaders.slice(0, 20);
-            localStorage.setItem('beagleGlobalTops', JSON.stringify(leaders));
+            // Запис результату у хмару
+            database.ref('scores/' + playerName).set({ username: playerName, score: score });
 
-            list.innerHTML = leaders.map((l, i) => `
-                <div class="score-row ${l.username === playerName ? 'current-player' : ''}">
-                    <span>#${i+1} ${l.username}</span>
-                    <span style="font-weight:bold;">${l.score} 🦴</span>
-                </div>
-            `).join('');
+            // Отримання ТОП-20 від усіх гравців
+            database.ref('scores').orderByChild('score').limitToLast(20).on('value', (snapshot) => {
+                let leaders = [];
+                snapshot.forEach((child) => { leaders.push(child.val()); });
+                leaders.sort((a, b) => b.score - a.score);
+
+                list.innerHTML = leaders.map((l, i) => `
+                    <div class="score-row ${l.username === playerName ? 'current-player' : ''}">
+                        <span>#${i+1} ${l.username}</span>
+                        <span style="font-weight:bold;">${l.score} 🦴</span>
+                    </div>
+                `).join('');
+            });
         }
 
         function gameLoop() {
             ctx.clearRect(0, 0, canvas.width, canvas.height);
-            
-            // НОВА ЛОГІКА НЕБА: зміна кольору кожні 10 кісточок
             let colorIndex = Math.min(Math.floor(score / 10), skyColors.length - 1);
             ctx.fillStyle = skyColors[colorIndex];
             ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-            // Додаємо зорі, якщо небо нічне (після 40 кісточок)
             if (colorIndex >= 4) {
                 ctx.fillStyle = "white";
-                stars.forEach(s => {
-                    ctx.beginPath(); ctx.arc(s.x, s.y, s.r, 0, Math.PI*2); ctx.fill();
-                });
+                stars.forEach(s => { ctx.beginPath(); ctx.arc(s.x, s.y, s.r, 0, Math.PI*2); ctx.fill(); });
             }
 
             clouds.forEach(c => {
                 c.x -= c.speed;
-                ctx.globalAlpha = colorIndex >= 3 ? 0.4 : 1.0; // Хмари стають тьмянішими вночі
+                ctx.globalAlpha = colorIndex >= 3 ? 0.4 : 1.0;
                 ctx.drawImage(imgCloud, c.x, c.y, c.w, c.h);
                 ctx.globalAlpha = 1.0;
                 if (c.x + c.w < 0) c.x = canvas.width;
@@ -107,12 +120,7 @@
                 ctx.fillText(`READY, ${playerName.toUpperCase()}?`, canvas.width/2, 340);
             } else if (!isGameOver) {
                 dog.dy += 1.5; dog.y += dog.dy;
-                // Твоє заземлення лап
-                if (dog.y + dog.h > groundY + 20) { 
-                    dog.y = groundY + 20 - dog.h; 
-                    dog.dy = 0; 
-                    dog.grounded = true; 
-                }
+                if (dog.y + dog.h > groundY + 20) { dog.y = groundY + 20 - dog.h; dog.dy = 0; dog.grounded = true; }
                 ctx.drawImage(imgDog, dog.x, dog.y, dog.w, dog.h);
 
                 spawnTimer++;
@@ -120,17 +128,11 @@
                     let type = Math.random() > 0.5 ? 'cat' : 'house';
                     let objW = 125, objH = 125;
                     let objX = canvas.width;
+                    let finalY = groundY - objH + 25; // Твоє заземлення
                     
-                    // Твоє заземлення об'єктів
-                    let finalY = groundY - objH + 25;
                     obstacles.push({ x: objX, y: finalY, w: objW, h: objH, type: type });
-                    
                     if (Math.random() < 0.75) bones.push({ x: objX + 40, y: groundY - 290, w: 75, h: 50 });
-
-                    // Твоє зближення подвійних об'єктів
-                    if (Math.random() < 0.35) {
-                        obstacles.push({ x: objX + 65, y: finalY, w: objW, h: objH, type: type });
-                    }
+                    if (Math.random() < 0.35) obstacles.push({ x: objX + 65, y: finalY, w: objW, h: objH, type: type }); // Твоє зближення
                     spawnTimer = 0;
                 }
 
