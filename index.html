@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Beagle Run - Double Overlap</title>
+    <title>Beagle Run - Sky Cycle</title>
     <style>
         html, body { margin: 0; padding: 0; width: 100%; height: 100%; background: #1a1a1a; overflow: hidden; display: flex; justify-content: center; align-items: center; font-family: sans-serif; }
         canvas { display: block; background: #87CEEB; touch-action: none; width: 100vw; height: 56.25vw; max-height: 100vh; max-width: 177.78vh; }
@@ -35,6 +35,11 @@
         canvas.width = 1280; canvas.height = 720;
         const groundY = canvas.height * 0.85; 
         
+        // Масив кольорів неба (кожні 10 кісточок)
+        const skyColors = ['#87CEEB', '#FFB366', '#FF7F50', '#4B0082', '#000033'];
+        let stars = [];
+        for(let i=0; i<50; i++) stars.push({x: Math.random()*canvas.width, y: Math.random()*300, r: Math.random()*2});
+
         const imgDog = new Image(); imgDog.src = '1124-removebg-preview.png';
         const imgCat = new Image(); imgCat.src = '1126-removebg-preview.png';
         const imgBone = new Image(); imgBone.src = '1127-removebg-preview.png';
@@ -45,7 +50,8 @@
         let gameSpeed = 8.8, isGameOver = false, isWaiting = true;
         let spawnTimer = 0, playerName = localStorage.getItem('beagleUserName') || "BeagleOli";
         
-        let dog = { x: 150, y: groundY - 145, w: 155, h: 155, dy: 0, jump: 28, grounded: false };
+        // Твоє налаштування висоти бігля
+        let dog = { x: 150, y: groundY - 135, w: 155, h: 155, dy: 0, jump: 28, grounded: false };
         let obstacles = [], bones = [], clouds = [];
 
         for(let i=0; i<5; i++) clouds.push({ x: Math.random()*canvas.width, y: Math.random()*150, w: 180, h: 110, speed: 0.5 + Math.random() });
@@ -70,11 +76,25 @@
 
         function gameLoop() {
             ctx.clearRect(0, 0, canvas.width, canvas.height);
-            ctx.fillStyle = '#87CEEB'; ctx.fillRect(0, 0, canvas.width, canvas.height);
+            
+            // НОВА ЛОГІКА НЕБА: зміна кольору кожні 10 кісточок
+            let colorIndex = Math.min(Math.floor(score / 10), skyColors.length - 1);
+            ctx.fillStyle = skyColors[colorIndex];
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            // Додаємо зорі, якщо небо нічне (після 40 кісточок)
+            if (colorIndex >= 4) {
+                ctx.fillStyle = "white";
+                stars.forEach(s => {
+                    ctx.beginPath(); ctx.arc(s.x, s.y, s.r, 0, Math.PI*2); ctx.fill();
+                });
+            }
 
             clouds.forEach(c => {
                 c.x -= c.speed;
+                ctx.globalAlpha = colorIndex >= 3 ? 0.4 : 1.0; // Хмари стають тьмянішими вночі
                 ctx.drawImage(imgCloud, c.x, c.y, c.w, c.h);
+                ctx.globalAlpha = 1.0;
                 if (c.x + c.w < 0) c.x = canvas.width;
             });
 
@@ -87,6 +107,7 @@
                 ctx.fillText(`READY, ${playerName.toUpperCase()}?`, canvas.width/2, 340);
             } else if (!isGameOver) {
                 dog.dy += 1.5; dog.y += dog.dy;
+                // Твоє заземлення лап
                 if (dog.y + dog.h > groundY + 20) { 
                     dog.y = groundY + 20 - dog.h; 
                     dog.dy = 0; 
@@ -99,16 +120,16 @@
                     let type = Math.random() > 0.5 ? 'cat' : 'house';
                     let objW = 125, objH = 125;
                     let objX = canvas.width;
-                    let finalY = groundY - objH + 28;
                     
+                    // Твоє заземлення об'єктів
+                    let finalY = groundY - objH + 25;
                     obstacles.push({ x: objX, y: finalY, w: objW, h: objH, type: type });
                     
-                    // Кістка трохи вище для зручного стрибка
                     if (Math.random() < 0.75) bones.push({ x: objX + 40, y: groundY - 290, w: 75, h: 50 });
 
-                    // ПОДВІЙНІ ОБ'ЄКТИ: ТЕПЕР НАКЛАДАЮТЬСЯ (80 пікселів замість 95-110)
+                    // Твоє зближення подвійних об'єктів
                     if (Math.random() < 0.35) {
-                        obstacles.push({ x: objX + 80, y: finalY, w: objW, h: objH, type: type });
+                        obstacles.push({ x: objX + 65, y: finalY, w: objW, h: objH, type: type });
                     }
                     spawnTimer = 0;
                 }
@@ -116,8 +137,6 @@
                 obstacles.forEach((o) => {
                     o.x -= gameSpeed;
                     ctx.drawImage(o.type === 'cat' ? imgCat : imgHouse, o.x, o.y, o.w, o.h);
-                    
-                    // Хітбокс адаптований під накладання
                     if (dog.x + 65 < o.x + 95 && dog.x + 110 > o.x + 30 && dog.y + 60 < o.y + 100 && dog.y + 125 > o.y + 25) {
                         isGameOver = true;
                         document.getElementById('final-score').innerText = "Your Score: " + score;
@@ -143,7 +162,7 @@
         }
 
         function restartGame() {
-            score = 0; obstacles = []; bones = []; dog.y = groundY - 145; 
+            score = 0; obstacles = []; bones = []; dog.y = groundY - 135; 
             isGameOver = false; isWaiting = false; overlay.style.display = 'none';
         }
 
