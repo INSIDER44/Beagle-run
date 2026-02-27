@@ -87,7 +87,7 @@
                 ctx.fillText(`READY, ${playerName.toUpperCase()}?`, canvas.width/2, 340);
             } else if (!isGameOver) {
                 dog.dy += 1.5; dog.y += dog.dy;
-                if (dog.y + dog.h > groundY + 10) { 
+                if (dog.y + dog.h > groundY + 15) { 
                     dog.y = groundY + 10 - dog.h; 
                     dog.dy = 0; 
                     dog.grounded = true; 
@@ -99,7 +99,7 @@
                     let type = Math.random() > 0.5 ? 'cat' : 'house';
                     let objW = 125, objH = 125;
                     let objX = canvas.width;
-                    let finalY = groundY - objH + 25;
+                    let finalY = groundY - objH + 28;
                     
                     obstacles.push({ x: objX, y: finalY, w: objW, h: objH, type: type });
                     
