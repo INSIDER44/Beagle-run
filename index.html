@@ -3,35 +3,44 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Beagle Run - Global Online</title>
+    <title>Beagle Run - Global Leaderboard</title>
     
     <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-database-compat.js"></script>
 
     <style>
-        html, body { margin: 0; padding: 0; width: 100%; height: 100%; background: #1a1a1a; overflow: hidden; display: flex; justify-content: center; align-items: center; font-family: sans-serif; }
-        canvas { display: block; background: #87CEEB; touch-action: none; width: 100vw; height: 56.25vw; max-height: 100vh; max-width: 177.78vh; }
+        html, body { margin: 0; padding: 0; width: 100%; height: 100%; background: #1a1a1a; overflow: hidden; display: flex; justify-content: center; align-items: center; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+        canvas { display: block; background: #87CEEB; touch-action: none; width: 100vw; height: 56.25vw; max-height: 100vh; max-width: 177.78vh; box-shadow: 0 0 50px rgba(0,0,0,0.5); }
+        
         #ui-overlay { position: absolute; width: 100%; height: 100%; display: none; flex-direction: column; align-items: center; justify-content: center; background: rgba(0, 0, 0, 0.85); color: white; z-index: 20; pointer-events: none; }
-        #leaderboard { margin: 15px 0; background: rgba(255, 255, 255, 0.1); padding: 15px; border-radius: 12px; width: 280px; border: 1px solid rgba(255, 255, 255, 0.2); pointer-events: auto; max-height: 200px; overflow-y: auto; }
-        .score-row { display: flex; justify-content: space-between; padding: 8px 10px; border-bottom: 1px solid rgba(255, 255, 255, 0.05); font-size: 16px; }
-        .current-player { background: rgba(255, 215, 0, 0.3) !important; border: 1px solid #ffd700; border-radius: 5px; }
-        .btn-play { margin-top: 15px; padding: 15px 40px; background: #ffd700; color: black; border-radius: 10px; font-weight: bold; font-size: 20px; pointer-events: auto; cursor: pointer; border: none; }
+        
+        #leaderboard { margin: 15px 0; background: rgba(255, 255, 255, 0.1); padding: 15px; border-radius: 15px; width: 300px; border: 1px solid rgba(255, 255, 255, 0.2); pointer-events: auto; max-height: 250px; overflow-y: auto; }
+        
+        .score-row { display: flex; justify-content: space-between; padding: 10px; border-bottom: 1px solid rgba(255, 255, 255, 0.05); font-size: 16px; transition: 0.3s; }
+        .score-row:hover { background: rgba(255,255,255,0.05); }
+        .current-player { background: rgba(255, 215, 0, 0.2) !important; border: 1px solid #ffd700; border-radius: 8px; color: #ffd700; font-weight: bold; }
+        
+        .btn-play { margin-top: 20px; padding: 15px 50px; background: #ffd700; color: black; border-radius: 12px; font-weight: bold; font-size: 22px; pointer-events: auto; cursor: pointer; border: none; transition: transform 0.2s; }
+        .btn-play:active { transform: scale(0.95); }
     </style>
 </head>
 <body>
     <div id="ui-overlay">
-        <h1 style="color:#ff4d4d; margin:0; font-size: 40px;">GAME OVER</h1>
-        <p id="final-score" style="font-size:24px; margin:10px 0;">Score: 0</p>
+        <h1 style="color:#ff4d4d; margin:0; font-size: 48px; text-shadow: 2px 2px 10px rgba(0,0,0,0.5);">GAME OVER</h1>
+        <p id="final-score" style="font-size:26px; margin:10px 0; color: #eee;">Bones Collected: 0</p>
+        
         <div id="leaderboard">
-            <div style="font-weight:bold; text-align:center; color:#ffd700; margin-bottom:10px; font-size: 18px;">🏆 GLOBAL TOP 20</div>
+            <div style="font-weight:bold; text-align:center; color:#ffd700; margin-bottom:12px; font-size: 20px; letter-spacing: 1px;">🏆 GLOBAL TOP 20</div>
             <div id="leaderboard-list"></div>
         </div>
-        <button class="btn-play" onclick="restartGame()">PLAY AGAIN</button>
+        
+        <button class="btn-play" onclick="restartGame()">TRY AGAIN</button>
     </div>
+    
     <canvas id="game"></canvas>
 
     <script>
-        // Твій актуальний конфіг (уточнений)
+        // Your verified Firebase configuration
         const firebaseConfig = {
           apiKey: "AIzaSyDH40hHvT5RbpN3L5iYaRfaElh_idvl-3U",
           authDomain: "beaglerun-7ce74.firebaseapp.com",
@@ -39,12 +48,19 @@
           storageBucket: "beaglerun-7ce74.firebasestorage.app",
           messagingSenderId: "300084003629",
           appId: "1:300084003629:web:d9d01a4a9ff34e093189a4",
-          databaseURL: "https://beaglerun-7ce74-default-rtdb.firebaseio.com/" // Автоматично згенерований шлях
+          databaseURL: "https://beaglerun-7ce74-default-rtdb.firebaseio.com/"
         };
 
-        // Ініціалізація бази даних
         firebase.initializeApp(firebaseConfig);
         const database = firebase.database();
+
+        // Player Name Setup
+        let playerName = localStorage.getItem('beagleUserName');
+        if (!playerName) {
+            playerName = prompt("Welcome! Enter your name for the Global Leaderboard:", "HappyBeagle");
+            if (!playerName || playerName.trim() === "") playerName = "Racer" + Math.floor(Math.random() * 1000);
+            localStorage.setItem('beagleUserName', playerName.substring(0, 12));
+        }
 
         const canvas = document.getElementById('game');
         const ctx = canvas.getContext('2d');
@@ -56,7 +72,7 @@
         
         const skyColors = ['#87CEEB', '#FFB366', '#FF7F50', '#4B0082', '#000033'];
         let stars = [];
-        for(let i=0; i<50; i++) stars.push({x: Math.random()*canvas.width, y: Math.random()*300, r: Math.random()*2});
+        for(let i=0; i<60; i++) stars.push({x: Math.random()*canvas.width, y: Math.random()*350, r: Math.random()*2});
 
         const imgDog = new Image(); imgDog.src = '1124-removebg-preview.png';
         const imgCat = new Image(); imgCat.src = '1126-removebg-preview.png';
@@ -65,19 +81,24 @@
         const imgCloud = new Image(); imgCloud.src = '1176-removebg-preview.png';
 
         let score = 0, highScore = localStorage.getItem('beagleBest') || 0;
-        let gameSpeed = 8.8, isGameOver = false, isWaiting = true;
-        let spawnTimer = 0, playerName = localStorage.getItem('beagleUserName') || "BeagleOli";
+        let gameSpeed = 9, isGameOver = false, isWaiting = true;
+        let spawnTimer = 0;
         
-        let dog = { x: 150, y: groundY - 135, w: 155, h: 155, dy: 0, jump: 28, grounded: false };
+        let dog = { x: 150, y: groundY - 135, w: 155, h: 155, dy: 0, jump: 29, grounded: false };
         let obstacles = [], bones = [], clouds = [];
 
-        for(let i=0; i<5; i++) clouds.push({ x: Math.random()*canvas.width, y: Math.random()*150, w: 180, h: 110, speed: 0.5 + Math.random() });
+        for(let i=0; i<6; i++) clouds.push({ x: Math.random()*canvas.width, y: Math.random()*180, w: 180, h: 110, speed: 0.4 + Math.random() });
 
         function updateLeaderboard() {
-            // Запис результату у хмару
-            database.ref('scores/' + playerName).set({ username: playerName, score: score });
+            // Save to Firebase
+            database.ref('scores/' + playerName).once('value').then((snapshot) => {
+                const data = snapshot.val();
+                if (!data || score > data.score) {
+                    database.ref('scores/' + playerName).set({ username: playerName, score: score });
+                }
+            });
 
-            // Отримання ТОП-20 від усіх гравців
+            // Fetch Top 20
             database.ref('scores').orderByChild('score').limitToLast(20).on('value', (snapshot) => {
                 let leaders = [];
                 snapshot.forEach((child) => { leaders.push(child.val()); });
@@ -86,7 +107,7 @@
                 list.innerHTML = leaders.map((l, i) => `
                     <div class="score-row ${l.username === playerName ? 'current-player' : ''}">
                         <span>#${i+1} ${l.username}</span>
-                        <span style="font-weight:bold;">${l.score} 🦴</span>
+                        <span>${l.score} 🦴</span>
                     </div>
                 `).join('');
             });
@@ -94,77 +115,79 @@
 
         function gameLoop() {
             ctx.clearRect(0, 0, canvas.width, canvas.height);
-            let colorIndex = Math.min(Math.floor(score / 10), skyColors.length - 1);
+            let colorIndex = Math.min(Math.floor(score / 15), skyColors.length - 1);
             ctx.fillStyle = skyColors[colorIndex];
             ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-            if (colorIndex >= 4) {
+            if (colorIndex >= 4) { // Night stars
                 ctx.fillStyle = "white";
                 stars.forEach(s => { ctx.beginPath(); ctx.arc(s.x, s.y, s.r, 0, Math.PI*2); ctx.fill(); });
             }
 
             clouds.forEach(c => {
                 c.x -= c.speed;
-                ctx.globalAlpha = colorIndex >= 3 ? 0.4 : 1.0;
+                ctx.globalAlpha = colorIndex >= 3 ? 0.3 : 0.8;
                 ctx.drawImage(imgCloud, c.x, c.y, c.w, c.h);
                 ctx.globalAlpha = 1.0;
                 if (c.x + c.w < 0) c.x = canvas.width;
             });
 
-            ctx.fillStyle = '#458B00';
+            ctx.fillStyle = '#3d7a00'; // Grass
             ctx.fillRect(0, groundY, canvas.width, canvas.height - groundY);
 
             if (isWaiting) {
-                ctx.fillStyle = "rgba(0,0,0,0.7)"; ctx.fillRect(0, 0, canvas.width, canvas.height);
-                ctx.fillStyle = "white"; ctx.textAlign = "center"; ctx.font = "bold 50px sans-serif";
-                ctx.fillText(`READY, ${playerName.toUpperCase()}?`, canvas.width/2, 340);
+                ctx.fillStyle = "rgba(0,0,0,0.6)"; ctx.fillRect(0, 0, canvas.width, canvas.height);
+                ctx.fillStyle = "#ffd700"; ctx.textAlign = "center"; ctx.font = "bold 50px sans-serif";
+                ctx.fillText(`READY, ${playerName.toUpperCase()}?`, canvas.width/2, 320);
+                ctx.fillStyle = "white"; ctx.font = "25px sans-serif";
+                ctx.fillText("Tap or Click to Start", canvas.width/2, 380);
             } else if (!isGameOver) {
-                dog.dy += 1.5; dog.y += dog.dy;
+                dog.dy += 1.6; dog.y += dog.dy;
                 if (dog.y + dog.h > groundY + 20) { dog.y = groundY + 20 - dog.h; dog.dy = 0; dog.grounded = true; }
                 ctx.drawImage(imgDog, dog.x, dog.y, dog.w, dog.h);
 
                 spawnTimer++;
-                if (spawnTimer > 85) {
+                if (spawnTimer > 80) {
                     let type = Math.random() > 0.5 ? 'cat' : 'house';
-                    let objW = 125, objH = 125;
-                    let objX = canvas.width;
-                    let finalY = groundY - objH + 25; // Твоє заземлення
+                    let objW = 120, objH = 120;
+                    let finalY = groundY - objH + 25; // Fixed grounding
                     
-                    obstacles.push({ x: objX, y: finalY, w: objW, h: objH, type: type });
-                    if (Math.random() < 0.75) bones.push({ x: objX + 40, y: groundY - 290, w: 75, h: 50 });
-                    if (Math.random() < 0.35) obstacles.push({ x: objX + 65, y: finalY, w: objW, h: objH, type: type }); // Твоє зближення
+                    obstacles.push({ x: canvas.width, y: finalY, w: objW, h: objH, type: type });
+                    if (Math.random() < 0.8) bones.push({ x: canvas.width + 50, y: groundY - 280, w: 70, h: 50 });
                     spawnTimer = 0;
                 }
 
                 obstacles.forEach((o) => {
                     o.x -= gameSpeed;
                     ctx.drawImage(o.type === 'cat' ? imgCat : imgHouse, o.x, o.y, o.w, o.h);
-                    if (dog.x + 65 < o.x + 95 && dog.x + 110 > o.x + 30 && dog.y + 60 < o.y + 100 && dog.y + 125 > o.y + 25) {
+                    if (dog.x + 60 < o.x + 90 && dog.x + 100 > o.x + 30 && dog.y + 60 < o.y + 90 && dog.y + 120 > o.y + 30) {
                         isGameOver = true;
-                        document.getElementById('final-score').innerText = "Your Score: " + score;
+                        if(score > highScore) { highScore = score; localStorage.setItem('beagleBest', score); }
+                        document.getElementById('final-score').innerText = "Bones Collected: " + score;
                         updateLeaderboard();
                         overlay.style.display = 'flex';
                     }
                 });
-                obstacles = obstacles.filter(o => o.x > -250);
+                obstacles = obstacles.filter(o => o.x > -200);
 
                 bones.forEach((b, i) => {
                     b.x -= gameSpeed;
                     ctx.drawImage(imgBone, b.x, b.y, b.w, b.h);
                     if (dog.x < b.x + b.w && dog.x + dog.w > b.x && dog.y < b.y + b.h && dog.y + dog.h > b.y) {
                         score++; bones.splice(i, 1);
+                        if(score % 5 === 0) gameSpeed += 0.2;
                     }
                 });
 
                 ctx.fillStyle = "white"; ctx.font = "bold 35px sans-serif"; ctx.textAlign = "left";
                 ctx.fillText(`Bones: ${score}`, 40, 60);
-                ctx.textAlign = "right"; ctx.fillText(`Best: ${highScore}`, canvas.width - 40, 60);
+                ctx.textAlign = "right"; ctx.fillText(`Personal Best: ${highScore}`, canvas.width - 40, 60);
             }
             requestAnimationFrame(gameLoop);
         }
 
         function restartGame() {
-            score = 0; obstacles = []; bones = []; dog.y = groundY - 135; 
+            score = 0; obstacles = []; bones = []; dog.y = groundY - 135; gameSpeed = 9;
             isGameOver = false; isWaiting = false; overlay.style.display = 'none';
         }
 
