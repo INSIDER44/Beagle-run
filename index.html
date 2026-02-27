@@ -3,13 +3,13 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Beagle Run - Global Online</title>
+    <title>Beagle Run - Pro Edition</title>
     
     <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-database-compat.js"></script>
 
     <style>
-        html, body { margin: 0; padding: 0; width: 100%; height: 100%; background: #1a1a1a; overflow: hidden; display: flex; justify-content: center; align-items: center; font-family: sans-serif; }
+        html, body { margin: 0; padding: 0; width: 100%; height: 100%; background: #1a1a1a; overflow: hidden; display: flex; justify-content: center; align-items: center; font-family: 'Segoe UI', Roboto, sans-serif; }
         canvas { display: block; background: #87CEEB; touch-action: none; width: 100vw; height: 56.25vw; max-height: 100vh; max-width: 177.78vh; }
         #ui-overlay { position: absolute; width: 100%; height: 100%; display: none; flex-direction: column; align-items: center; justify-content: center; background: rgba(0, 0, 0, 0.9); color: white; z-index: 20; pointer-events: none; }
         #leaderboard { margin: 15px 0; background: rgba(255, 255, 255, 0.1); padding: 15px; border-radius: 12px; width: 280px; border: 1px solid rgba(255, 255, 255, 0.2); pointer-events: auto; max-height: 220px; overflow-y: auto; }
@@ -32,7 +32,7 @@
 
     <script>
         const firebaseConfig = {
-          apiKey: "AIzaSyDH40hHvT5RbpT3L5iYaRfaElh_idvl-3U",
+          apiKey: "AIzaSyDH40hHvT5RbpN3L5iYaRfaElh_idvl-3U",
           authDomain: "beaglerun-7ce74.firebaseapp.com",
           projectId: "beaglerun-7ce74",
           storageBucket: "beaglerun-7ce74.firebasestorage.app",
@@ -69,6 +69,7 @@
         const imgCloud = new Image(); imgCloud.src = '1176-removebg-preview.png';
 
         let score = 0, gameSpeed = 9, isGameOver = false, isWaiting = true;
+        let scoreScale = 1; // Для анімації пульсації
         let spawnTimer = 0;
         let dog = { x: 150, y: groundY - 135, w: 155, h: 155, dy: 0, jump: 28, grounded: false };
         let obstacles = [], bones = [], clouds = [];
@@ -76,12 +77,8 @@
         for(let i=0; i<5; i++) clouds.push({ x: Math.random()*canvas.width, y: Math.random()*150, w: 180, h: 110, speed: 0.5 + Math.random() });
 
         function updateLeaderboard() {
-            // МИТТЄВО показуємо результат на екрані
             document.getElementById('final-score').innerText = "Bones Collected: " + score;
-
             const userRef = database.ref('scores/' + playerName);
-            
-            // Перевіряємо, чи новий результат кращий за старий в базі
             userRef.once('value').then((snapshot) => {
                 const existingData = snapshot.val();
                 if (!existingData || score > existingData.score) {
@@ -89,7 +86,6 @@
                 }
             });
 
-            // Підтягуємо ТОП-20
             database.ref('scores').orderByChild('score').limitToLast(20).on('value', (snapshot) => {
                 let leaders = [];
                 snapshot.forEach((child) => { leaders.push(child.val()); });
@@ -101,6 +97,31 @@
                     </div>
                 `).join('');
             });
+        }
+
+        function drawHUD() {
+            // Малюємо підкладку для лічильника
+            ctx.fillStyle = "rgba(0, 0, 0, 0.3)";
+            ctx.roundRect(20, 20, 220, 70, 15);
+            ctx.fill();
+
+            // Малюємо маленьку іконку кісточки в HUD
+            ctx.drawImage(imgBone, 35, 30, 50, 45);
+
+            // Анімований лічильник очок
+            ctx.save();
+            ctx.translate(150, 55);
+            ctx.scale(scoreScale, scoreScale);
+            ctx.fillStyle = "white";
+            ctx.font = "bold 45px 'Segoe UI', sans-serif";
+            ctx.textAlign = "center";
+            ctx.shadowBlur = 10;
+            ctx.shadowColor = "rgba(0,0,0,0.5)";
+            ctx.fillText(score, 0, 15);
+            ctx.restore();
+
+            // Поступово повертаємо масштаб до одиниці (плавна анімація)
+            if (scoreScale > 1) scoreScale -= 0.05;
         }
 
         function gameLoop() {
@@ -154,18 +175,33 @@
                     b.x -= gameSpeed;
                     ctx.drawImage(imgBone, b.x, b.y, b.w, b.h);
                     if (dog.x < b.x + b.w && dog.x + dog.w > b.x && dog.y < b.y + b.h && dog.y + dog.h > b.y) {
-                        score++; bones.splice(i, 1);
+                        score++; 
+                        scoreScale = 1.5; // Запускаємо пульсацію при зборі
+                        bones.splice(i, 1);
                     }
                 });
 
-                ctx.fillStyle = "white"; ctx.font = "bold 35px sans-serif"; ctx.textAlign = "left";
-                ctx.fillText(`Bones: ${score}`, 40, 60);
+                drawHUD();
             }
             requestAnimationFrame(gameLoop);
         }
 
+        // Покращений roundRect для старих браузерів
+        CanvasRenderingContext2D.prototype.roundRect = function (x, y, w, h, r) {
+            if (w < 2 * r) r = w / 2;
+            if (h < 2 * r) r = h / 2;
+            this.beginPath();
+            this.moveTo(x + r, y);
+            this.arcTo(x + w, y, x + w, y + h, r);
+            this.arcTo(x + w, y + h, x, y + h, r);
+            this.arcTo(x, y + h, x, y, r);
+            this.arcTo(x, y, x + w, y, r);
+            this.closePath();
+            return this;
+        };
+
         function restartGame() {
-            score = 0; obstacles = []; bones = []; dog.y = groundY - 135; gameSpeed = 9;
+            score = 0; obstacles = []; bones = []; dog.y = groundY - 135; gameSpeed = 9; scoreScale = 1;
             isGameOver = false; isWaiting = false; overlay.style.display = 'none';
         }
 
