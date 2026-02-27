@@ -3,15 +3,15 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Beagle Run - Cycle World</title>
+    <title>Beagle Run - Cosmos Final</title>
     
     <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-database-compat.js"></script>
 
     <style>
         html, body { margin: 0; padding: 0; width: 100%; height: 100%; background: #1a1a1a; overflow: hidden; display: flex; justify-content: center; align-items: center; font-family: sans-serif; }
-        canvas { display: block; background: #87CEEB; touch-action: none; width: 100vw; height: 56.25vw; max-height: 100vh; max-width: 177.78vh; }
-        #ui-overlay { position: absolute; width: 100%; height: 100%; display: none; flex-direction: column; align-items: center; justify-content: center; background: rgba(0, 0, 0, 0.9); color: white; z-index: 20; pointer-events: none; }
+        canvas { display: block; background: #000; touch-action: none; width: 100vw; height: 56.25vw; max-height: 100vh; max-width: 177.78vh; }
+        #ui-overlay { position: absolute; width: 100%; height: 100%; display: none; flex-direction: column; align-items: center; justify-content: center; background: rgba(0, 0, 0, 0.85); color: white; z-index: 20; pointer-events: none; }
         #leaderboard { margin: 15px 0; background: rgba(255, 255, 255, 0.1); padding: 10px; border-radius: 12px; width: 260px; pointer-events: auto; max-height: 200px; overflow-y: auto; }
         .score-row { display: flex; justify-content: space-between; padding: 6px 10px; border-bottom: 1px solid rgba(255, 255, 255, 0.1); font-size: 14px; }
         .current-player { color: #ffd700; font-weight: bold; }
@@ -58,15 +58,25 @@
         const imgBone = new Image(); imgBone.src = '1127-removebg-preview.png' + v;
         const imgHouse = new Image(); imgHouse.src = '1128-removebg-preview.png' + v;
 
-        const skyColors = ['#87CEEB', '#FFB366', '#FF7F50', '#4B0082', '#000033'];
+        const skyPhases = [
+            [135, 206, 235], [255, 179, 102], [255, 127, 80],
+            [75, 0, 130], [0, 0, 51], [20, 20, 40]
+        ];
+
         let stars = [];
-        for(let i=0; i<50; i++) stars.push({x: Math.random()*canvas.width, y: Math.random()*400, r: Math.random()*2});
+        for(let i=0; i<70; i++) stars.push({x: Math.random()*canvas.width, y: Math.random()*400, r: Math.random()*1.5});
 
         let score = 0, gameSpeed = 9, isGameOver = false, isWaiting = true;
-        let scoreScale = 1;
-        let spawnTimer = 0;
+        let scoreScale = 1, spawnTimer = 0;
         let dog = { x: 150, y: groundY - 135, w: 155, h: 155, dy: 0, jump: 28, grounded: false };
         let obstacles = [], bones = [];
+
+        function lerpColor(c1, c2, t) {
+            const r = Math.round(c1[0] + (c2[0] - c1[0]) * t);
+            const g = Math.round(c1[1] + (c2[1] - c1[1]) * t);
+            const b = Math.round(c1[2] + (c2[2] - c1[2]) * t);
+            return `rgb(${r},${g},${b})`;
+        }
 
         function updateLeaderboard() {
             document.getElementById('final-score').innerText = "Bones Collected: " + score;
@@ -99,16 +109,39 @@
 
         function gameLoop() {
             ctx.clearRect(0, 0, canvas.width, canvas.height);
-            
-            // ЛОГІКА ЦИКЛІЧНОГО НЕБА (кожні 10 очок - нова фаза, всього 5 фаз = 50 очок на повне коло)
-            let colorIndex = Math.floor(score / 10) % skyColors.length;
-            ctx.fillStyle = skyColors[colorIndex];
+            const cycleScore = score % 60;
+            const phaseProgress = (cycleScore / 10);
+            const currentIndex = Math.floor(phaseProgress) % skyPhases.length;
+            const nextIndex = (currentIndex + 1) % skyPhases.length;
+            const t = phaseProgress - Math.floor(phaseProgress);
+
+            ctx.fillStyle = lerpColor(skyPhases[currentIndex], skyPhases[nextIndex], t);
             ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-            // Малюємо зірки тільки якщо зараз вечір або ніч
-            if (colorIndex >= 3) {
+            // SUN & MOON
+            if (cycleScore < 35) { // SUN
+                const sunOpacity = cycleScore < 25 ? 1 : 1 - (cycleScore - 25) / 10;
+                ctx.globalAlpha = Math.max(0, sunOpacity);
+                ctx.fillStyle = "#FFD700";
+                ctx.shadowBlur = 40; ctx.shadowColor = "#FFD700";
+                ctx.beginPath(); ctx.arc(1050, 150, 60, 0, Math.PI*2); ctx.fill();
+                ctx.shadowBlur = 0; ctx.globalAlpha = 1;
+            }
+            if (cycleScore > 25) { // MOON
+                const moonOpacity = cycleScore < 35 ? (cycleScore - 25) / 10 : (cycleScore > 55 ? 1 - (cycleScore - 55) / 5 : 1);
+                ctx.globalAlpha = Math.max(0, moonOpacity);
+                ctx.fillStyle = "#F0F0F0";
+                ctx.shadowBlur = 30; ctx.shadowColor = "white";
+                ctx.beginPath(); ctx.arc(1050, 150, 50, 0, Math.PI*2); ctx.fill();
+                ctx.shadowBlur = 0; ctx.globalAlpha = 1;
+            }
+
+            // STARS
+            if (currentIndex >= 3) {
+                ctx.globalAlpha = (currentIndex === 3) ? t : 1;
                 ctx.fillStyle = "white";
                 stars.forEach(s => { ctx.beginPath(); ctx.arc(s.x, s.y, s.r, 0, Math.PI*2); ctx.fill(); });
+                ctx.globalAlpha = 1;
             }
 
             ctx.fillStyle = '#458B00';
