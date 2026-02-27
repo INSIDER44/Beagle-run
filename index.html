@@ -3,13 +3,13 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Beagle Run - Pro Edition</title>
+    <title>Beagle Run - Stable Edition</title>
     
     <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-database-compat.js"></script>
 
     <style>
-        html, body { margin: 0; padding: 0; width: 100%; height: 100%; background: #1a1a1a; overflow: hidden; display: flex; justify-content: center; align-items: center; font-family: 'Segoe UI', Roboto, sans-serif; }
+        html, body { margin: 0; padding: 0; width: 100%; height: 100%; background: #1a1a1a; overflow: hidden; display: flex; justify-content: center; align-items: center; font-family: sans-serif; }
         canvas { display: block; background: #87CEEB; touch-action: none; width: 100vw; height: 56.25vw; max-height: 100vh; max-width: 177.78vh; }
         #ui-overlay { position: absolute; width: 100%; height: 100%; display: none; flex-direction: column; align-items: center; justify-content: center; background: rgba(0, 0, 0, 0.9); color: white; z-index: 20; pointer-events: none; }
         #leaderboard { margin: 15px 0; background: rgba(255, 255, 255, 0.1); padding: 15px; border-radius: 12px; width: 280px; border: 1px solid rgba(255, 255, 255, 0.2); pointer-events: auto; max-height: 220px; overflow-y: auto; }
@@ -144,14 +144,14 @@
                 if (dog.y + dog.h > groundY + 20) { dog.y = groundY + 20 - dog.h; dog.dy = 0; dog.grounded = true; }
                 ctx.drawImage(imgDog, dog.x, dog.y, dog.w, dog.h);
 
-                // --- ВИПРАВЛЕНИЙ СПАВН ОБ'ЄКТІВ ---
+                // --- ПОВЕРНЕННЯ СТАБІЛЬНОГО СПАВНУ ---
                 spawnTimer++;
-                if (spawnTimer > Math.max(50, 90 - score)) { 
+                if (spawnTimer > 90) { 
                     let type = Math.random() > 0.5 ? 'cat' : 'house';
                     obstacles.push({ x: canvas.width, y: groundY - 100, w: 125, h: 125, type: type });
                     
-                    // Шанс на подвійний об'єкт збільшується з прогресом
-                    if (score > 5 && Math.random() < 0.3) {
+                    // Стабільна перевірка на подвійний об'єкт
+                    if (Math.random() < 0.3) {
                         obstacles.push({ x: canvas.width + 450, y: groundY - 100, w: 125, h: 125, type: Math.random() > 0.5 ? 'cat' : 'house' });
                     }
 
@@ -159,12 +159,10 @@
                     spawnTimer = 0;
                 }
 
-                obstacles.forEach((o, index) => {
+                obstacles.forEach((o) => {
                     o.x -= gameSpeed;
                     ctx.drawImage(o.type === 'cat' ? imgCat : imgHouse, o.x, o.y, o.w, o.h);
-                    
-                    // Collision
-                    if (dog.x + 50 < o.x + o.w - 30 && dog.x + dog.w - 50 > o.x + 30 && dog.y + 50 < o.y + o.h - 20 && dog.y + dog.h - 20 > o.y + 20) {
+                    if (dog.x + 60 < o.x + 90 && dog.x + 100 > o.x + 30 && dog.y + 60 < o.y + 90 && dog.y + 120 > o.y + 30) {
                         isGameOver = true;
                         updateLeaderboard();
                         overlay.style.display = 'flex';
@@ -177,10 +175,8 @@
                     ctx.drawImage(imgBone, b.x, b.y, b.w, b.h);
                     if (dog.x < b.x + b.w && dog.x + dog.w > b.x && dog.y < b.y + b.h && dog.y + dog.h > b.y) {
                         score++; scoreScale = 1.5; bones.splice(i, 1);
-                        if(score % 5 === 0) gameSpeed += 0.3;
                     }
                 });
-                bones = bones.filter(b => b.x > -100);
 
                 drawHUD();
             }
