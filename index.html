@@ -127,7 +127,7 @@
                 if (spawnTimer > 95) { 
                     obstacles.push({ x: canvas.width, y: groundY - 100, w: 120, h: 120, type: Math.random() > 0.5 ? 'cat' : 'house' });
                     if (Math.random() < 0.3) {
-                        obstacles.push({ x: canvas.width + 450, y: groundY - 110, w: 120, h: 120, type: Math.random() > 0.5 ? 'cat' : 'house' });
+                        obstacles.push({ x: canvas.width + 90, y: groundY - 110, w: 120, h: 120, type: Math.random() > 0.5 ? 'cat' : 'house' });
                     }
                     bones.push({ x: canvas.width + 150, y: groundY - 280, w: 70, h: 50 });
                     spawnTimer = 0;
