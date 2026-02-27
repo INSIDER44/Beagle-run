@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Beagle Run - Stable Edition</title>
+    <title>Beagle Run - Cycle World</title>
     
     <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-database-compat.js"></script>
@@ -12,18 +12,17 @@
         html, body { margin: 0; padding: 0; width: 100%; height: 100%; background: #1a1a1a; overflow: hidden; display: flex; justify-content: center; align-items: center; font-family: sans-serif; }
         canvas { display: block; background: #87CEEB; touch-action: none; width: 100vw; height: 56.25vw; max-height: 100vh; max-width: 177.78vh; }
         #ui-overlay { position: absolute; width: 100%; height: 100%; display: none; flex-direction: column; align-items: center; justify-content: center; background: rgba(0, 0, 0, 0.9); color: white; z-index: 20; pointer-events: none; }
-        #leaderboard { margin: 15px 0; background: rgba(255, 255, 255, 0.1); padding: 15px; border-radius: 12px; width: 280px; border: 1px solid rgba(255, 255, 255, 0.2); pointer-events: auto; max-height: 220px; overflow-y: auto; }
-        .score-row { display: flex; justify-content: space-between; padding: 8px 10px; border-bottom: 1px solid rgba(255, 255, 255, 0.05); font-size: 16px; }
-        .current-player { background: rgba(255, 215, 0, 0.3) !important; border: 1px solid #ffd700; border-radius: 5px; color: #ffd700; }
-        .btn-play { margin-top: 15px; padding: 15px 40px; background: #ffd700; color: black; border-radius: 10px; font-weight: bold; font-size: 20px; pointer-events: auto; cursor: pointer; border: none; }
+        #leaderboard { margin: 15px 0; background: rgba(255, 255, 255, 0.1); padding: 10px; border-radius: 12px; width: 260px; pointer-events: auto; max-height: 200px; overflow-y: auto; }
+        .score-row { display: flex; justify-content: space-between; padding: 6px 10px; border-bottom: 1px solid rgba(255, 255, 255, 0.1); font-size: 14px; }
+        .current-player { color: #ffd700; font-weight: bold; }
+        .btn-play { padding: 12px 30px; background: #ffd700; color: black; border-radius: 8px; font-weight: bold; font-size: 18px; pointer-events: auto; cursor: pointer; border: none; }
     </style>
 </head>
 <body>
     <div id="ui-overlay">
-        <h1 style="color:#ff4d4d; margin:0; font-size: 40px;">GAME OVER</h1>
-        <p id="final-score" style="font-size:24px; margin:10px 0;">Bones Collected: 0</p>
+        <h1 style="color:#ff4d4d; margin:0; font-size: 32px;">GAME OVER</h1>
+        <p id="final-score" style="font-size: 20px; margin: 5px 0;">Bones: 0</p>
         <div id="leaderboard">
-            <div style="font-weight:bold; text-align:center; color:#ffd700; margin-bottom:10px; font-size: 18px;">🏆 GLOBAL TOP 20</div>
             <div id="leaderboard-list"></div>
         </div>
         <button class="btn-play" onclick="restartGame()">PLAY AGAIN</button>
@@ -43,13 +42,7 @@
 
         firebase.initializeApp(firebaseConfig);
         const database = firebase.database();
-
-        let playerName = localStorage.getItem('beagleUserName');
-        if (!playerName) {
-            playerName = prompt("Enter your name:", "BeagleOli");
-            if (!playerName || playerName.trim() === "") playerName = "Guest" + Math.floor(Math.random() * 100);
-            localStorage.setItem('beagleUserName', playerName);
-        }
+        let playerName = localStorage.getItem('beagleUserName') || "Beagle";
 
         const canvas = document.getElementById('game');
         const ctx = canvas.getContext('2d');
@@ -58,37 +51,32 @@
 
         canvas.width = 1280; canvas.height = 720;
         const groundY = canvas.height * 0.85; 
+
+        const v = "?v=" + Math.random();
+        const imgDog = new Image(); imgDog.src = '1124-removebg-preview.png' + v;
+        const imgCat = new Image(); imgCat.src = '1126-removebg-preview.png' + v;
+        const imgBone = new Image(); imgBone.src = '1127-removebg-preview.png' + v;
+        const imgHouse = new Image(); imgHouse.src = '1128-removebg-preview.png' + v;
+
         const skyColors = ['#87CEEB', '#FFB366', '#FF7F50', '#4B0082', '#000033'];
         let stars = [];
-        for(let i=0; i<50; i++) stars.push({x: Math.random()*canvas.width, y: Math.random()*300, r: Math.random()*2});
-
-        const imgDog = new Image(); imgDog.src = '1124-removebg-preview.png';
-        const imgCat = new Image(); imgCat.src = '1126-removebg-preview.png';
-        const imgBone = new Image(); imgBone.src = '1127-removebg-preview.png';
-        const imgHouse = new Image(); imgHouse.src = '1128-removebg-preview.png';
-        const imgCloud = new Image(); imgCloud.src = '1176-removebg-preview.png';
+        for(let i=0; i<50; i++) stars.push({x: Math.random()*canvas.width, y: Math.random()*400, r: Math.random()*2});
 
         let score = 0, gameSpeed = 9, isGameOver = false, isWaiting = true;
         let scoreScale = 1;
         let spawnTimer = 0;
         let dog = { x: 150, y: groundY - 135, w: 155, h: 155, dy: 0, jump: 28, grounded: false };
-        let obstacles = [], bones = [], clouds = [];
-
-        for(let i=0; i<5; i++) clouds.push({ x: Math.random()*canvas.width, y: Math.random()*150, w: 180, h: 110, speed: 0.5 + Math.random() });
+        let obstacles = [], bones = [];
 
         function updateLeaderboard() {
             document.getElementById('final-score').innerText = "Bones Collected: " + score;
             const userRef = database.ref('scores/' + playerName);
-            userRef.once('value').then((snapshot) => {
-                const existingData = snapshot.val();
-                if (!existingData || score > existingData.score) {
-                    userRef.set({ username: playerName, score: score });
-                }
+            userRef.once('value').then((s) => {
+                if (!s.val() || score > s.val().score) userRef.set({ username: playerName, score: score });
             });
-
-            database.ref('scores').orderByChild('score').limitToLast(20).on('value', (snapshot) => {
+            database.ref('scores').orderByChild('score').limitToLast(20).on('value', (s) => {
                 let leaders = [];
-                snapshot.forEach((child) => { leaders.push(child.val()); });
+                s.forEach((c) => { leaders.push(c.val()); });
                 leaders.sort((a, b) => b.score - a.score);
                 list.innerHTML = leaders.map((l, i) => `
                     <div class="score-row ${l.username === playerName ? 'current-player' : ''}">
@@ -101,109 +89,74 @@
 
         function drawHUD() {
             ctx.fillStyle = "rgba(0, 0, 0, 0.3)";
-            ctx.roundRect(20, 20, 220, 70, 15);
-            ctx.fill();
-            ctx.drawImage(imgBone, 35, 30, 50, 45);
-            ctx.save();
-            ctx.translate(150, 55);
-            ctx.scale(scoreScale, scoreScale);
-            ctx.fillStyle = "white";
-            ctx.font = "bold 45px sans-serif";
-            ctx.textAlign = "center";
-            ctx.fillText(score, 0, 15);
-            ctx.restore();
+            ctx.beginPath(); ctx.roundRect(20, 20, 200, 60, 10); ctx.fill();
+            ctx.drawImage(imgBone, 30, 25, 45, 40);
+            ctx.save(); ctx.translate(140, 50); ctx.scale(scoreScale, scoreScale);
+            ctx.fillStyle = "white"; ctx.font = "bold 40px sans-serif"; ctx.textAlign = "center";
+            ctx.fillText(score, 0, 12); ctx.restore();
             if (scoreScale > 1) scoreScale -= 0.05;
         }
 
         function gameLoop() {
             ctx.clearRect(0, 0, canvas.width, canvas.height);
-            let colorIndex = Math.min(Math.floor(score / 10), skyColors.length - 1);
+            
+            // ЛОГІКА ЦИКЛІЧНОГО НЕБА (кожні 10 очок - нова фаза, всього 5 фаз = 50 очок на повне коло)
+            let colorIndex = Math.floor(score / 10) % skyColors.length;
             ctx.fillStyle = skyColors[colorIndex];
             ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-            if (colorIndex >= 4) {
+            // Малюємо зірки тільки якщо зараз вечір або ніч
+            if (colorIndex >= 3) {
                 ctx.fillStyle = "white";
                 stars.forEach(s => { ctx.beginPath(); ctx.arc(s.x, s.y, s.r, 0, Math.PI*2); ctx.fill(); });
             }
-
-            clouds.forEach(c => {
-                c.x -= c.speed;
-                ctx.drawImage(imgCloud, c.x, c.y, c.w, c.h);
-                if (c.x + c.w < 0) c.x = canvas.width;
-            });
 
             ctx.fillStyle = '#458B00';
             ctx.fillRect(0, groundY, canvas.width, canvas.height - groundY);
 
             if (isWaiting) {
-                ctx.fillStyle = "rgba(0,0,0,0.7)"; ctx.fillRect(0, 0, canvas.width, canvas.height);
+                ctx.fillStyle = "rgba(0,0,0,0.5)"; ctx.fillRect(0, 0, canvas.width, canvas.height);
                 ctx.fillStyle = "white"; ctx.textAlign = "center"; ctx.font = "bold 50px sans-serif";
-                ctx.fillText(`READY, ${playerName.toUpperCase()}?`, canvas.width/2, 340);
+                ctx.fillText("TAP TO START", canvas.width/2, 360);
             } else if (!isGameOver) {
                 dog.dy += 1.5; dog.y += dog.dy;
                 if (dog.y + dog.h > groundY + 20) { dog.y = groundY + 20 - dog.h; dog.dy = 0; dog.grounded = true; }
                 ctx.drawImage(imgDog, dog.x, dog.y, dog.w, dog.h);
 
-                // --- ПОВЕРНЕННЯ СТАБІЛЬНОГО СПАВНУ ---
                 spawnTimer++;
-                if (spawnTimer > 90) { 
-                    let type = Math.random() > 0.5 ? 'cat' : 'house';
-                    obstacles.push({ x: canvas.width, y: groundY - 100, w: 125, h: 125, type: type });
-                    
-                    // Стабільна перевірка на подвійний об'єкт
+                if (spawnTimer > 95) { 
+                    obstacles.push({ x: canvas.width, y: groundY - 110, w: 120, h: 120, type: Math.random() > 0.5 ? 'cat' : 'house' });
                     if (Math.random() < 0.3) {
-                        obstacles.push({ x: canvas.width + 900, y: groundY - 100, w: 125, h: 125, type: Math.random() > 0.5 ? 'cat' : 'house' });
+                        obstacles.push({ x: canvas.width + 450, y: groundY - 110, w: 120, h: 120, type: Math.random() > 0.5 ? 'cat' : 'house' });
                     }
-
-                    if (Math.random() < 0.8) bones.push({ x: canvas.width + 100, y: groundY - 290, w: 75, h: 50 });
+                    bones.push({ x: canvas.width + 150, y: groundY - 280, w: 70, h: 50 });
                     spawnTimer = 0;
                 }
 
                 obstacles.forEach((o) => {
                     o.x -= gameSpeed;
                     ctx.drawImage(o.type === 'cat' ? imgCat : imgHouse, o.x, o.y, o.w, o.h);
-                    if (dog.x + 60 < o.x + 90 && dog.x + 100 > o.x + 30 && dog.y + 60 < o.y + 90 && dog.y + 120 > o.y + 30) {
-                        isGameOver = true;
-                        updateLeaderboard();
-                        overlay.style.display = 'flex';
+                    if (dog.x + 60 < o.x + 85 && dog.x + 95 > o.x + 35 && dog.y + 60 < o.y + 85 && dog.y + 110 > o.y + 35) {
+                        isGameOver = true; updateLeaderboard(); overlay.style.display = 'flex';
                     }
                 });
-                obstacles = obstacles.filter(o => o.x > -200);
-
                 bones.forEach((b, i) => {
-                    b.x -= gameSpeed;
-                    ctx.drawImage(imgBone, b.x, b.y, b.w, b.h);
+                    b.x -= gameSpeed; ctx.drawImage(imgBone, b.x, b.y, b.w, b.h);
                     if (dog.x < b.x + b.w && dog.x + dog.w > b.x && dog.y < b.y + b.h && dog.y + dog.h > b.y) {
-                        score++; scoreScale = 1.5; bones.splice(i, 1);
+                        score++; scoreScale = 1.4; bones.splice(i, 1);
                     }
                 });
-
                 drawHUD();
             }
             requestAnimationFrame(gameLoop);
         }
 
-        CanvasRenderingContext2D.prototype.roundRect = function (x, y, w, h, r) {
-            if (w < 2 * r) r = w / 2;
-            if (h < 2 * r) r = h / 2;
-            this.beginPath();
-            this.moveTo(x + r, y);
-            this.arcTo(x + w, y, x + w, y + h, r);
-            this.arcTo(x + w, y + h, x, y + h, r);
-            this.arcTo(x, y + h, x, y, r);
-            this.arcTo(x, y, x + w, y, r);
-            this.closePath();
-            return this;
-        };
-
         function restartGame() {
-            score = 0; obstacles = []; bones = []; dog.y = groundY - 135; gameSpeed = 9; scoreScale = 1;
-            isGameOver = false; isWaiting = false; overlay.style.display = 'none';
+            score = 0; obstacles = []; bones = []; dog.y = groundY - 135; isGameOver = false; isWaiting = false; overlay.style.display = 'none';
         }
 
-        window.addEventListener('mousedown', (e) => { if(e.target.tagName !== 'BUTTON') handleInput(); });
-        window.addEventListener('touchstart', (e) => { if(e.target.tagName !== 'BUTTON') handleInput(); });
-        function handleInput() { if (isWaiting) isWaiting = false; else if (!isGameOver && dog.grounded) { dog.dy = -dog.jump; dog.grounded = false; } }
+        window.addEventListener('touchstart', (e) => { if(e.target.tagName !== 'BUTTON') { e.preventDefault(); if (isWaiting) isWaiting = false; else if (dog.grounded) { dog.dy = -dog.jump; dog.grounded = false; } } }, {passive: false});
+        window.addEventListener('mousedown', () => { if (isWaiting) isWaiting = false; else if (dog.grounded) { dog.dy = -dog.jump; dog.grounded = false; } });
         gameLoop();
     </script>
 </body>
